@@ -1,0 +1,154 @@
+.analyze-page {
+  padding-bottom: var(--space-24);
+}
+
+.analyze-header {
+  background-color: var(--color-paper);
+}
+
+.analyze-title {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.analyze-sub {
+  max-width: 680px;
+  margin-bottom: var(--space-8);
+}
+
+.pattern-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-6);
+}
+
+.selector-pills {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.pill-btn {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 4px 10px;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  transition: all var(--transition-fast);
+}
+
+.pill-btn:hover {
+  border-color: var(--color-ink);
+}
+
+.pill-btn--active {
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+  border-color: var(--color-ink);
+}
+
+/* Linear Pipeline Walkthrough */
+.analyze-pipeline-section {
+  padding-top: var(--space-12);
+}
+
+.pipeline-walkthrough {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.step-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.step-block--future {
+  border-style: dashed;
+  background-color: transparent;
+  opacity: 0.7;
+}
+
+.step-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-line);
+  padding-bottom: var(--space-3);
+}
+
+.step-num {
+  color: var(--color-accent);
+}
+
+.step-body {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.step-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.step-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-paper);
+}
+
+.step-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px dashed var(--color-line);
+  font-size: var(--text-xs);
+}
+
+.step-row:last-child {
+  border-bottom: none;
+}
+
+.step-img-frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 1px solid var(--color-line);
+  padding: var(--space-3);
+  background-color: var(--color-paper);
+}
+
+.step-img-frame img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.step-diagram-box {
+  background-color: var(--color-paper-dark);
+  border: 1px solid var(--color-line);
+  padding: var(--space-4);
+  overflow-x: auto;
+}
+
+.ascii-diagram {
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--color-ink);
+}
+
+@media (max-width: 768px) {
+  .step-body {
+    grid-template-columns: 1fr;
+  }
+}

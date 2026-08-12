@@ -1,0 +1,75 @@
+.how-it-works-page {
+  padding-bottom: var(--space-20);
+}
+
+.how-header {
+  background-color: var(--color-paper-dark);
+}
+
+.how-title {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.how-sub {
+  max-width: 680px;
+}
+
+.pipeline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-6);
+}
+
+.pipeline-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pipeline-card--future {
+  border-style: dashed;
+  background-color: transparent;
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--color-line);
+  padding-bottom: var(--space-2);
+}
+
+.step-tag {
+  color: var(--color-accent);
+}
+
+.future-tag {
+  color: var(--color-muted);
+  border: 1px dashed var(--color-line-dark);
+  padding: 1px 6px;
+}
+
+.step-heading {
+  color: var(--color-ink);
+}
+
+.step-text {
+  color: var(--color-soft-gray);
+}
+
+.tech-explain-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--space-12);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .pipeline-grid {
+    grid-template-columns: 1fr;
+  }
+  .tech-explain-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,21 @@
+# Claude Code
+.claude/
+
+# Markdown / notes (kept locally, not pushed)
+*.md
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Frontend
+frontend/frontend/node_modules/
+frontend/frontend/dist/
+
+# Raw dataset archive (redundant with extracted kolam_data/)
+one-stroke-dotted-pulli-kolam.zip
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,82 @@
+.about-page {
+  padding-bottom: var(--space-24);
+}
+
+.about-header {
+  background-color: var(--color-paper-dark);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.about-title {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.about-sub {
+  max-width: 680px;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: var(--space-12);
+  align-items: start;
+}
+
+.about-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.about-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.about-card {
+  background-color: var(--color-white);
+  border: 1px solid var(--color-line);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.about-tech-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+  margin-top: var(--space-2);
+}
+
+.about-tech-list li {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed var(--color-line);
+  padding-bottom: var(--space-1);
+}
+
+.about-tech-list span {
+  color: var(--color-soft-gray);
+}
+
+.team-member {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.team-member span {
+  font-size: var(--text-xs);
+  color: var(--color-soft-gray);
+}
+
+@media (max-width: 900px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+  }
+}

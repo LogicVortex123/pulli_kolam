@@ -1,0 +1,236 @@
+PULLI MOTIF DISCOVERY REPORT
+==============================
+
+Dataset: kolam109
+Pattern: 1
+
+Total real edges:       10628
+Covered edges:          10448
+Recall:                 98.3%
+
+Motifs:
+----------------------------------------
+
+#1    Radius 1
+     placements: 648
+     coverage:   16.94%
+
+#2    Radius 1
+     placements: 456
+     coverage:   15.47%
+
+#3    Radius 1
+     placements: 472
+     coverage:   14.26%
+
+#4    Radius 1
+     placements: 444
+     coverage:   9.94%
+
+#5    Radius 1
+     placements: 444
+     coverage:   9.07%
+
+#6    Radius 1
+     placements: 248
+     coverage:   7.83%
+
+#7    Radius 1
+     placements: 132
+     coverage:   6.10%
+
+#8    Radius 1
+     placements: 330
+     coverage:   4.14%
+
+#9    Radius 1
+     placements: 588
+     coverage:   3.12%
+
+#10   Radius 1
+     placements: 544
+     coverage:   2.07%
+
+#11   Radius 1
+     placements: 852
+     coverage:   1.62%
+
+#12   Radius 1
+     placements: 172
+     coverage:   0.75%
+
+#13   Radius 1
+     placements: 344
+     coverage:   0.11%
+
+#14   Radius 2
+     placements: 34
+     coverage:   0.62%
+
+#15   Radius 2
+     placements: 56
+     coverage:   0.47%
+
+#16   Radius 2
+     placements: 48
+     coverage:   0.38%
+
+#17   Radius 2
+     placements: 12
+     coverage:   0.34%
+
+#18   Radius 2
+     placements: 12
+     coverage:   0.34%
+
+#19   Radius 2
+     placements: 36
+     coverage:   0.30%
+
+#20   Radius 2
+     placements: 10
+     coverage:   0.28%
+
+#21   Radius 2
+     placements: 32
+     coverage:   0.23%
+
+#22   Radius 2
+     placements: 12
+     coverage:   0.23%
+
+#23   Radius 2
+     placements: 12
+     coverage:   0.23%
+
+#24   Radius 2
+     placements: 12
+     coverage:   0.23%
+
+#25   Radius 2
+     placements: 16
+     coverage:   0.19%
+
+#26   Radius 2
+     placements: 12
+     coverage:   0.19%
+
+#27   Radius 2
+     placements: 16
+     coverage:   0.15%
+
+#28   Radius 2
+     placements: 16
+     coverage:   0.15%
+
+#29   Radius 2
+     placements: 8
+     coverage:   0.15%
+
+#30   Radius 2
+     placements: 16
+     coverage:   0.15%
+
+#31   Radius 2
+     placements: 12
+     coverage:   0.15%
+
+#32   Radius 2
+     placements: 8
+     coverage:   0.15%
+
+#33   Radius 2
+     placements: 16
+     coverage:   0.15%
+
+#34   Radius 3
+     placements: 4
+     coverage:   0.13%
+
+#35   Radius 3
+     placements: 4
+     coverage:   0.11%
+
+#36   Radius 3
+     placements: 4
+     coverage:   0.11%
+
+#37   Radius 3
+     placements: 4
+     coverage:   0.11%
+
+#38   Radius 3
+     placements: 4
+     coverage:   0.11%
+
+#39   Radius 3
+     placements: 4
+     coverage:   0.11%
+
+#40   Radius 3
+     placements: 4
+     coverage:   0.11%
+
+#41   Radius 3
+     placements: 4
+     coverage:   0.11%
+
+#42   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#43   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#44   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#45   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#46   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#47   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#48   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#49   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#50   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#51   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#52   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+#53   Radius 3
+     placements: 4
+     coverage:   0.08%
+
+----------------------------------------
+
+Motif reuse:
+    highly reused (>=50 placements):    14
+    moderately reused (2-49 placements): 39
+    one-off (1 placement):               0
+
+    note: minimum placements for any SELECTED motif was 4 -- the greedy
+    set-cover always picks the highest-marginal-gain candidate first, so true
+    one-off local structures never get picked before the per-radius motif cap
+    (20) is hit; they remain among the 180 residual (uncovered) edges instead.

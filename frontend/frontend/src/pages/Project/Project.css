@@ -1,0 +1,58 @@
+.project-page {
+  padding-bottom: var(--space-20);
+}
+
+.project-header {
+  background-color: var(--color-paper-dark);
+}
+
+.project-title {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.project-sub {
+  max-width: 680px;
+}
+
+.project-section-grid {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--space-12);
+  align-items: start;
+}
+
+.grid-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.pillars-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6);
+}
+
+.pillar-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.project-cta-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .project-section-grid {
+    grid-template-columns: 1fr;
+  }
+  .pillars-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

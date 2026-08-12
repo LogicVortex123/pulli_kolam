@@ -10,20 +10,37 @@ This must never be softened; a pattern either satisfies it or it doesn't.
 from __future__ import annotations
 
 from collections import Counter
+from typing import Union
 
 import networkx as nx
 
+from engine.kolam_pattern import KolamPattern
 
-def check_self_consistency(G_original: nx.MultiGraph, G_regenerated: nx.MultiGraph) -> bool:
+GraphLike = Union[nx.MultiGraph, KolamPattern]
+
+
+def _as_graph(G: GraphLike) -> nx.MultiGraph:
+    """Every public function here accepts either a raw nx.MultiGraph
+    (existing behavior, unchanged) or a KolamPattern (its .graph field is
+    used) -- so check_validity(pattern) works exactly like
+    check_validity(pattern.graph) without every caller needing to know
+    which one they have."""
+    return G.graph if isinstance(G, KolamPattern) else G
+
+
+def check_self_consistency(G_original: GraphLike, G_regenerated: GraphLike) -> bool:
     """Hard correctness check: edge multisets must match EXACTLY, including
     multiplicity (a regenerated single strand where the original had a
     double strand is NOT a match)."""
+    G_original = _as_graph(G_original)
+    G_regenerated = _as_graph(G_regenerated)
     e1 = Counter(frozenset(e) for e in G_original.edges())
     e2 = Counter(frozenset(e) for e in G_regenerated.edges())
     return e1 == e2
 
 
-def check_validity(G: nx.MultiGraph) -> dict:
+def check_validity(G: GraphLike) -> dict:
+    G = _as_graph(G)
     largest = max(nx.connected_components(G), key=len)
     Gc = G.subgraph(largest)
     return {
@@ -34,7 +51,7 @@ def check_validity(G: nx.MultiGraph) -> dict:
     }
 
 
-def is_valid_single_stroke(G: nx.MultiGraph) -> bool:
+def is_valid_single_stroke(G: GraphLike) -> bool:
     """The single boolean hard gate: is `G` a valid ekarekha Kolam?"""
     result = check_validity(G)
     return (
@@ -43,7 +60,7 @@ def is_valid_single_stroke(G: nx.MultiGraph) -> bool:
     )
 
 
-def diagnose_validity(G: nx.MultiGraph) -> dict:
+def diagnose_validity(G: GraphLike) -> dict:
     """Companion to check_validity, NOT a replacement: check_validity stays
     a hard, unmodified pass/fail gate for CSV-sourced data, where the
     dataset is described as already-verified single-stroke and a failure
@@ -68,6 +85,7 @@ def diagnose_validity(G: nx.MultiGraph) -> dict:
     outside the largest component) is a separate problem this doesn't
     fix, reported separately in the returned dict.
     """
+    G = _as_graph(G)
     validity = check_validity(G)
     largest = max(nx.connected_components(G), key=len)
     Gc = G.subgraph(largest)

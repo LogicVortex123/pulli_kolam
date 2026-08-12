@@ -41,3 +41,69 @@ def is_valid_single_stroke(G: nx.MultiGraph) -> bool:
         result["largest_component_covers_all_nodes"]
         and (result["is_eulerian_circuit"] or result["has_eulerian_path"])
     )
+
+
+def diagnose_validity(G: nx.MultiGraph) -> dict:
+    """Companion to check_validity, NOT a replacement: check_validity stays
+    a hard, unmodified pass/fail gate for CSV-sourced data, where the
+    dataset is described as already-verified single-stroke and a failure
+    means a bug in our code, not the data (see engine/validity.py module
+    docstring and PULLI session notes).
+
+    Image-derived graphs are different: detection noise means near-misses
+    are expected and common, and "fails the strict gate" doesn't say
+    whether that's 1 stray edge or the graph is structurally garbage. This
+    gives a graded, explainable answer instead: which vertices have the
+    wrong (odd) degree, the minimum-cost pairing between them (standard
+    Route Inspection / Chinese Postman correction -- pair odd-degree
+    vertices via shortest-path distance, minimum total weight), and
+    exactly which nodes/edges each correction touches. `n_corrections`
+    small and localized is evidence the reconstruction is fundamentally
+    sound; large or sprawling is evidence it genuinely isn't -- this
+    function reports which, it does not decide "valid" for you.
+
+    Corrections are computed on the LARGEST connected component only
+    (matching check_validity's own convention) -- shortest-path pairing
+    only makes sense within one component. Disconnection itself (nodes
+    outside the largest component) is a separate problem this doesn't
+    fix, reported separately in the returned dict.
+    """
+    validity = check_validity(G)
+    largest = max(nx.connected_components(G), key=len)
+    Gc = G.subgraph(largest)
+
+    odd_nodes = [n for n, d in Gc.degree() if d % 2 == 1]
+
+    corrections = []
+    if odd_nodes:
+        H = nx.Graph()
+        H.add_nodes_from(odd_nodes)
+        for i, u in enumerate(odd_nodes):
+            for v in odd_nodes[i + 1 :]:
+                H.add_edge(u, v, weight=nx.shortest_path_length(Gc, u, v))
+        matching = nx.min_weight_matching(H, weight="weight")
+        for u, v in matching:
+            path = nx.shortest_path(Gc, u, v)
+            path_edges = list(zip(path, path[1:]))
+            corrections.append(
+                {
+                    "pair": (u, v),
+                    "path": path,
+                    "path_edges": path_edges,
+                    "cost": len(path_edges),
+                }
+            )
+
+    return {
+        "is_valid": (
+            validity["largest_component_covers_all_nodes"]
+            and (validity["is_eulerian_circuit"] or validity["has_eulerian_path"])
+        ),
+        "connected_components": validity["connected_components"],
+        "n_nodes_outside_largest_component": G.number_of_nodes() - len(largest),
+        "n_odd_degree_nodes": len(odd_nodes),
+        "odd_degree_nodes": odd_nodes,
+        "n_corrections": len(corrections),
+        "corrections": corrections,
+        "total_correction_cost": sum(c["cost"] for c in corrections),
+    }

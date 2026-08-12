@@ -3,6 +3,7 @@
 
 # Markdown / notes (kept locally, not pushed)
 *.md
+!/README.md
 
 # Python
 __pycache__/

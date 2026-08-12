@@ -14,18 +14,20 @@ from typing import Union
 
 import networkx as nx
 
+from engine.generated_kolam import GeneratedKolam
 from engine.kolam_pattern import KolamPattern
 
-GraphLike = Union[nx.MultiGraph, KolamPattern]
+GraphLike = Union[nx.MultiGraph, KolamPattern, GeneratedKolam]
 
 
 def _as_graph(G: GraphLike) -> nx.MultiGraph:
-    """Every public function here accepts either a raw nx.MultiGraph
-    (existing behavior, unchanged) or a KolamPattern (its .graph field is
-    used) -- so check_validity(pattern) works exactly like
+    """Every public function here accepts a raw nx.MultiGraph (existing
+    behavior, unchanged), a KolamPattern, or a GeneratedKolam -- any
+    object with a `.graph` field is unwrapped -- so check_validity(pattern)
+    or check_validity(candidate) both work exactly like
     check_validity(pattern.graph) without every caller needing to know
     which one they have."""
-    return G.graph if isinstance(G, KolamPattern) else G
+    return G.graph if isinstance(G, (KolamPattern, GeneratedKolam)) else G
 
 
 def check_self_consistency(G_original: GraphLike, G_regenerated: GraphLike) -> bool:

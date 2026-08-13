@@ -1,14 +1,271 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: end of session 12 (M4.0) — real-photo corpus expanded,
-ML interface contract frozen, deterministic baseline re-measured.
-Decision: **M4.0 DATA + CONTRACT READY.** ML implementation (model code,
-training) has still NOT begun — that is M4.1+, not this session.
+Last updated: end of session 13 (M4.1) — COMPLETE. **Result: the learned
+lattice detector is worse than the classical detector on every measured
+axis and does not generalize to real photographs — recommendation is
+NOT to integrate it (see Session 13's Section 13 for the two legitimate
+paths forward).** Do not assume a trained model in this repo means ML
+detection is production-ready; it explicitly is not, per measured
+evidence.
 
 Work from sessions 4-12 lives on branch `feature/generation-pipeline`
 (pushed to origin, not yet merged to `master`) —
 `git log --oneline master..feature/generation-pipeline` to see them, or
 PR compare link: https://github.com/SIH-2026-Celestials/pulli_kolam/pull/new/feature/generation-pipeline
+
+## Session 13 — M4.1 Learned Lattice Detection Baseline — RESEARCH REPORT (COMPLETE)
+
+**Bottom line: the learned detector is worse than the classical
+detector on every measured axis, including its own held-out test set,
+and does not generalize to real photographs at all.** This is a
+negative result, reported in full per the task's explicit "possible
+conclusions... learned detector is worse... synthetic improvement does
+not transfer to real photographs" — both apply here, both are measured,
+neither is softened.
+
+### 1. Hypothesis
+
+Can a small learned vision model (CNN) improve dot/lattice detection on
+low-contrast/low-light kolam photos, while producing output that
+satisfies the existing, frozen `Lattice.pixel_positions` contract with
+zero changes to the deterministic downstream engine? Motivated by
+session 12's M4.0 finding that the ONE genuine real-photo failure case
+in scope (`kolam2_tshrinivasan.jpg`) had visible dots the classical
+detector still missed.
+
+### 2. Dataset
+
+- **Synthetic (Tier A, used for training)**: 164 newly generated images
+  (`experiments/m4_1/data/`), rendered from real, already-validated
+  kolam19/kolam29 CSV patterns via `generate_synthetic_photos.render_clean`
+  (reused unmodified) + a new `degrade_v2` pipeline.
+- **Real (Tier B, evaluation only, never trained on)**: the existing
+  22-photo corpus (session 12), 4 in-scope / 18 `NO_VISIBLE_DOT_MARKERS`.
+
+### 3. Synthetic generation methodology
+
+`experiments/m4_1/generate_training_data.py`: rotation ±15°, scale
+0.85-1.15×, mild perspective, background tint (5 floor-color options),
+brightness/contrast pushed toward the two REAL measured low-contrast
+failures (`kolam2_tshrinivasan.jpg`: mean 62.5/std 21.6;
+`kolam_naduveetu_meenakshisundaram.jpg`: mean 72.6/std 63.4), variable
+Gaussian blur/noise, real JPEG re-encode at variable quality, variable
+dot/line size. A per-image `severity ∈ [0,1]` drives brightness/
+contrast/blur/noise together.
+
+**Important caveat discovered during evaluation, not hidden**: this
+degradation pipeline turned out considerably harsher than intended.
+Even the UNMODIFIED classical detector's recall collapsed on these sets
+(0.086-0.18) versus its 1.0/0.9995 on the original, gentler
+`generate_synthetic_photos.py` degradation. The dataset is not
+"realistic phone photo" difficulty — it is closer to worst-case/
+adversarial difficulty. This confounds the learned-vs-classical
+comparison on `m4_1_val`/`m4_1_test`: both detectors struggle there, so
+those two sets are less informative than `synthetic_tuned`/
+`synthetic_heldout` (gentler, and also never seen by the learned model)
+for judging real-world-relevant performance.
+
+### 4. Train/validation/test split
+
+Pattern-level disjoint (train: 18 patterns, val: 5, test: 9 — kolam19
++ kolam29 pattern numbers never repeat across splits), and disjoint from
+every pattern already used by the classical tuned/held-out sets. Disjoint
+seed ranges per split. Full pattern IDs and per-image severity/gray
+stats: `experiments/m4_1/data/split_manifest.json`. Train: 108 images
+(18×6 variants), val: 20 (5×4), test: 36 (9×4).
+
+### 5. Classical baseline (measured, `experiments/m4_1/results/classical_baseline.json`)
+
+| set | recall | precision | mean loc. error (px) |
+|---|---|---|---|
+| synthetic_tuned (7 img, original gentle degradation) | 1.0000 | 0.9997 | 0.72 |
+| synthetic_heldout (8 img, original gentle degradation) | 0.9995 | 0.9997 | 0.77 |
+| m4_1_val (20 img, harsh degrade_v2) | 0.180 | 0.948 | 1.08 |
+| m4_1_test (36 img, harsh degrade_v2, true held-out) | 0.086 | 0.972 | 0.94 |
+
+Real photos: no pixel-exact ground truth (unchanged from session 12);
+6/18 (33%) `NO_VISIBLE_DOT_MARKERS` images produce false-positive
+detections.
+
+### 6. Learned baseline (measured, same files)
+
+| set | recall | precision | mean loc. error (px) |
+|---|---|---|---|
+| synthetic_tuned | 0.069 | 0.357 | 4.27 |
+| synthetic_heldout | 0.055 | 0.321 | 3.60 |
+| m4_1_val | 0.038 | 0.241 | 3.92 |
+| m4_1_test (true held-out) | 0.051 | 0.290 | 3.99 |
+
+**The learned model is worse than the classical detector on every one
+of these 8 numbers**, including on `synthetic_tuned`/`synthetic_heldout`
+where the classical detector is near-perfect and the comparison is
+completely uncontaminated by the harsh `degrade_v2` confound above.
+
+### 7. Model architecture
+
+`experiments/m4_1/model.py`: `DotHeatmapNet`, 60,641 parameters. 4 conv
+blocks (16→32→64→64 channels), 3× maxpool (stride 8 total), 1×1 conv
+head → single-channel heatmap logits at 32×32 (input 256×256). Trained
+40 epochs, Adam lr=1e-3, BCEWithLogitsLoss against a Gaussian heatmap
+target (σ=1.2 heatmap-cells), batch size 8, CPU only. Best val_loss
+0.2236 (epoch ~33; loss plateaued from epoch ~9 onward — the model
+converged to a poor local solution early and did not meaningfully
+improve with more epochs). **Trains on `preprocessed.binary`** (the
+same Otsu-binarized, deskewed mask `detect_lattice` receives) — NOT the
+raw photo — to avoid a train/inference distribution mismatch (a bug
+caught and fixed before this run; see the earlier draft's mistake,
+corrected in `DotHeatmapDataset`).
+
+### 8. Metrics
+
+Per `docs/M4_EVALUATION_PROTOCOL.md`: precision/recall/mean localization
+error at 6.0px tolerance (unchanged convention), reported per set,
+never blended. `CONFIDENCE_THRESHOLD=0.4` and the NMS suppression
+radius were fixed BEFORE any evaluation run against `m4_1_test` or the
+real photos — not tuned post-hoc (task's explicit rule).
+
+### 9. Real-photo results (`experiments/m4_1/results/real_photo_comparison.json`)
+
+| file | classical | learned | human estimate |
+|---|---|---|---|
+| kolam2_tshrinivasan.jpg | 1 | 48 | ~25-30 |
+| kolam_attur1_infofarmer.jpg | 12 | 52 | ~4 clearly visible (unresolved discrepancy, see Phase 2 note) |
+| kolam_naduveetu_meenakshisundaram.jpg | 0 | 54 | ~100-150 |
+| muggu_kollam_sirensongs.jpg | 4 | 44 | ~20-30 |
+
+**The learned detector outputs a near-constant 44-54 "detections" on
+every real photo regardless of content** — a textbook severe
+distribution-shift signature (trained only on clean synthetic renders;
+real photos have camera noise/JPEG/background/resolution statistics the
+training data never modeled). NO_VISIBLE_DOT_MARKERS false-positive
+rate: classical 6/18 (33%, unchanged from session 12), **learned 18/18
+(100%)** — the learned detector fires on every single no-dot photo.
+
+### 10. Downstream results (`experiments/m4_1/results/downstream_test.json`)
+
+No crashes for either detector on any population (0/36, 0/8, 0/4 —
+confirms the sparse-detection-collapses-to-empty adapter design avoids
+the known `trace_path` blocker in practice, not just in unit tests).
+
+| population | classical fully-connected | learned fully-connected |
+|---|---|---|
+| m4_1_test (36) | 6/36 | 6/36 (tied, but see below) |
+| synthetic_heldout (8) | 6/8 | 0/8 |
+| real_in_scope (4) | 1/4 | 0/4 |
+
+The learned detector "reaches motif analysis" MORE often than classical
+(36/36, 8/8, 4/4 vs. classical's 6/36, 8/8, 2/4) — but this is
+misleading, not a success: it reaches that stage because it almost
+always returns ≥3 detections (even garbage ones), while classical's
+sparser, more honest detections on hard images often correctly return
+too few nodes to proceed at all. "Reached a later pipeline stage" ≠
+"succeeded" — **fully-connected-graph rate, the more meaningful measure,
+favors classical or ties everywhere, never favors learned.**
+
+**Direct answer to Phase 9's question ("does better perception → better
+structural analysis actually happen?"): no evidence of that here —
+worse perception did not produce better structure, and the
+appearance of "reaching more pipeline stages" was a false positive
+signal, not genuine improvement.**
+
+### 11. Failure analysis
+
+- **Severe distribution shift, synthetic→real.** The clearest, most
+  decisive signal (Section 9): near-constant output regardless of real
+  photo content. The model learned something specific to its narrow
+  synthetic training distribution, not a generalizable dot-detection
+  concept.
+- **Underfitting even on synthetic held-out data.** Even on
+  `synthetic_tuned`/`synthetic_heldout` (gentle degradation, closest to
+  "realistic"), the model badly underperforms classical (recall
+  0.055-0.069 vs. 0.9995-1.0). 108 training images and a 60K-parameter
+  model is very likely simply too little data/capacity for this task —
+  val_loss plateaued by epoch ~9 of 40 and never meaningfully improved,
+  a classic small-data/small-model ceiling, not a training-time bug.
+- **Two real implementation bugs were found and fixed during Phase 5/6
+  testing** (full detail preserved from the in-progress log, condensed
+  here): (a) an NMS suppression-radius unit-conversion bug that turned
+  1 true dot into ~9 spurious detections (fixed, verified against a
+  synthetic 5-point ground-truth case); (b) a PyTorch↔MKL OpenMP DLL
+  conflict causing hard process crashes the first time both libraries'
+  native code paths run in one process (mitigated with
+  `KMP_DUPLICATE_LIB_OK=TRUE`, verified not to silently corrupt output
+  for this workload before relying on it — see Phase 5 investigation
+  notes preserved in git history of this file). **Neither bug explains
+  the negative headline result** — both were fixed before the Section
+  5-10 numbers above were measured; the poor performance is a genuine
+  modeling-capacity/data-scale/domain-gap result, not an artifact of a
+  bug that's still present.
+- **The `degrade_v2` synthetic pipeline was too harsh** (Section 3),
+  confounding the `m4_1_val`/`m4_1_test` comparison specifically — this
+  makes classical's OWN numbers on those two sets look worse than its
+  real-world capability (known-good: 1.0/0.9995 on gentler synthetic
+  data), so the fairest classical-vs-learned comparison is Section 6's
+  `synthetic_tuned`/`synthetic_heldout` rows, where the gap is just as
+  large and uncontaminated by this confound.
+
+### 12. Limitations
+
+- Real-photo evaluation has no pixel-exact ground truth (unchanged
+  since session 12) — Section 9's real-photo numbers are detection
+  counts and qualitative failure signatures, not precision/recall.
+- Training set is small (108 images, 18 unique patterns) by ML
+  standards — this experiment cannot distinguish "CNNs fundamentally
+  can't help here" from "this particular tiny model/dataset combination
+  wasn't enough," and does not claim to.
+- `degrade_v2`'s difficulty calibration (Section 3) needs revisiting —
+  it overshot "realistic hard photo" into something closer to
+  worst-case synthetic noise, which is a methodology flaw worth fixing
+  before any future retry, not a finding about ML's potential.
+- Single architecture, single hyperparameter setting tried — no
+  architecture search, no data augmentation ablation, no learning-rate
+  sweep. This is explicitly the smallest reasonable baseline the task
+  asked for, not an optimized one.
+- OpenMP mitigation (`KMP_DUPLICATE_LIB_OK=TRUE`) is an acknowledged
+  environment workaround, not a production-grade fix (Section 11).
+
+### 13. Recommendation for M4.2
+
+**Do not proceed to integrate this learned detector into the
+pipeline.** The evidence does not support it, and the task's own
+"strict rule" is to report exactly this outcome when the numbers say
+so, not to reach for a positive spin.
+
+Two legitimate paths forward, both explicitly conditional on new
+evidence, neither decided here:
+1. **Retry with materially more scale**: a genuinely larger synthetic
+   dataset (the 400-pattern kolam19 collection is barely touched — 18
+   of 400 patterns used for training here), a fixed/gentler
+   `degrade_v2`, and a fair test of whether the small-data/small-model
+   ceiling in Section 11 is the real bottleneck before concluding CNNs
+   can't help at all.
+2. **Abandon the ML-detection direction for now** and revisit M4's
+   original Section 10 boundary decision — the classical detector,
+   despite its own real limitations (session 12), was not beaten by
+   this attempt, and "no measured improvement yet" is a valid basis for
+   deprioritizing this specific avenue in favor of other project
+   priorities.
+
+Either way: the frozen `Lattice.pixel_positions` contract, the
+adapter pattern (`engine/ml_contract.py` + a separate
+`experiments/*/`-scoped detector module), and the evaluation protocol
+(`docs/M4_EVALUATION_PROTOCOL.md`) all worked exactly as designed and
+need no rework — only the model/data/training need reconsideration if
+this direction is pursued further.
+
+**Strict rules honored throughout**: `engine/image_io.py` and every
+other deterministic-core file are untouched; `trace_path`'s known
+`IndexError` blocker (documented session 12) was NOT fixed;
+`generate_synthetic_photos.py` was reused, not modified; every metric
+in this report is measured and reproducible from the committed
+`experiments/m4_1/results/*.json` files, none fabricated; the negative
+result is reported in full, not minimized.
+
+Tests: core `tests/` suite 123/123 passing (unchanged, untouched).
+M4.1 experiment tests: `experiments/m4_1/tests/` 16/16 passing (run with
+`KMP_DUPLICATE_LIB_OK=TRUE python -m pytest experiments/m4_1/tests/`).
+
+## Session 12 — M4.0 Data Readiness (full text below, also the canonical copy)
 
 ## Session 12 — M4.0 Data Readiness (full text below, also the canonical copy)
 

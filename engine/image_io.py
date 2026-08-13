@@ -185,8 +185,25 @@ def _fit_lattice_coords(pixel_positions: np.ndarray) -> tuple[list[Point], np.nd
 
 def detect_lattice(preprocessed: Preprocessed) -> Lattice:
     pixel_positions, R = _detect_dot_pixels(preprocessed.binary)
-    if len(pixel_positions) == 0:
-        return Lattice([], [], R)
+    # _fit_lattice_coords needs at least 3 non-collinear points to fit a
+    # 2x2 affine transform (lstsq's 3-parameter-per-axis system is
+    # underdetermined below that); with fewer, its lattice column is
+    # degenerate (e.g. a single point sits at relative [0,0]), forcing M
+    # toward a singular matrix and crashing np.linalg.inv. Found on a
+    # real (non-synthetic) low-light photo, session 10: Otsu's global
+    # threshold misclassified 82.7% of a dark, low-contrast image as
+    # "ink" (mean brightness 62.5/255, no clean bimodal separation --
+    # every synthetic test photo in this project, however degraded with
+    # blur/noise/rotation, was always well-lit and high-contrast, so
+    # this failure mode was never exercised before). The 1-blob distance
+    # transform this produces yields a single spurious "dot" with an
+    # enormous estimated radius, which is what triggers the crash here --
+    # this guard makes the OUTCOME safe (a clean degenerate result,
+    # matching the existing empty-detection convention below), it does
+    # NOT fix the underlying binarization failure, which is a separate,
+    # larger open problem (see PROJECT_STATE.md).
+    if len(pixel_positions) < 3:
+        return Lattice([tuple(p) for p in pixel_positions], [], R)
     lattice_coords, _M, _t = _fit_lattice_coords(pixel_positions)
     return Lattice([tuple(p) for p in pixel_positions], lattice_coords, R)
 

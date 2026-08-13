@@ -12,6 +12,9 @@
 !/docs/RECONSTRUCTION.md
 !/docs/MOTIF_SELECTION.md
 !/docs/NOVEL_GENERATION.md
+# License/attribution record for third-party-licensed real photos --
+# must travel with the images it documents, not be silently dropped.
+!/real_photos/MANIFEST.md
 
 # Python
 __pycache__/

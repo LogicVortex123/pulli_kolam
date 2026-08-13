@@ -112,6 +112,61 @@ def test_trace_path_edge_set_matches_ground_truth_within_tolerance(stem):
     assert precision > 0.95
 
 
+def _blob_binary(centers, size=400, radius=8):
+    """A minimal synthetic binary ink mask with round dot-like blobs at
+    `centers` -- for testing detect_lattice's degenerate-input handling
+    without depending on an external real photo file."""
+    binary = np.zeros((size, size), dtype=np.uint8)
+    yy, xx = np.mgrid[0:size, 0:size]
+    for cx, cy in centers:
+        mask = (xx - cx) ** 2 + (yy - cy) ** 2 <= radius**2
+        binary[mask] = 255
+    return binary
+
+
+def test_detect_lattice_handles_zero_candidate_dots_without_crashing():
+    preprocessed = image_io.Preprocessed(binary=np.zeros((400, 400), dtype=np.uint8), rotation_deg=0.0)
+    lattice = image_io.detect_lattice(preprocessed)
+    assert lattice.lattice_coords == []
+    assert lattice.pixel_positions == []
+
+
+def test_detect_lattice_handles_one_candidate_dot_without_crashing():
+    # Regression test: found on a real (non-synthetic) low-light Wikimedia
+    # Commons photo, session 10 -- Otsu's global threshold misclassified
+    # most of the dark, low-contrast image as "ink," producing a single
+    # spurious dot-like blob. _fit_lattice_coords' affine fit needs >=3
+    # points and previously raised numpy.linalg.LinAlgError: Singular
+    # matrix on exactly this input. Must now return a clean degenerate
+    # result instead of crashing.
+    binary = _blob_binary([(200, 200)])
+    preprocessed = image_io.Preprocessed(binary=binary, rotation_deg=0.0)
+    lattice = image_io.detect_lattice(preprocessed)  # must not raise
+    assert lattice.lattice_coords == []
+    assert len(lattice.pixel_positions) == 1
+
+
+def test_detect_lattice_handles_two_candidate_dots_without_crashing():
+    # Same underlying degeneracy as the one-dot case (still < 3 points,
+    # an affine fit is still underdetermined) -- must not crash either.
+    binary = _blob_binary([(100, 100), (300, 300)])
+    preprocessed = image_io.Preprocessed(binary=binary, rotation_deg=0.0)
+    lattice = image_io.detect_lattice(preprocessed)  # must not raise
+    assert lattice.lattice_coords == []
+    assert len(lattice.pixel_positions) == 2
+
+
+def test_detect_lattice_still_fits_a_real_lattice_with_enough_dots():
+    # Guard rail: the >=3-point degenerate-input fix must not accidentally
+    # break the normal case. 5 dots on a clean grid -> a real lattice fit.
+    centers = [(100, 100), (150, 100), (200, 100), (100, 150), (100, 200)]
+    binary = _blob_binary(centers, size=400, radius=8)
+    preprocessed = image_io.Preprocessed(binary=binary, rotation_deg=0.0)
+    lattice = image_io.detect_lattice(preprocessed)
+    assert len(lattice.lattice_coords) == 5
+    assert len(set(lattice.lattice_coords)) == 5  # every dot gets a distinct coordinate
+
+
 def test_build_graph_produces_engine_compatible_multigraph():
     """The single public entry point should hand back exactly the format
     engine/graph_io.py produces: an nx.MultiGraph with (int, int) nodes,

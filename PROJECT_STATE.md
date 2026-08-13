@@ -1,6 +1,8 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: session 15 (M4.1.2 target-resolution check). M4.1
+Last updated: session 16 (M4.2 implementation — API + frontend
+integration + 128×128 encoder-decoder model, code-complete and tested;
+training/evaluation NOT yet complete, see Session 16 below). M4.1
 (session 13) result unchanged: the learned lattice detector is worse
 than the classical detector on every measured axis and does not
 generalize to real photographs — recommendation is NOT to integrate it.
@@ -14,10 +16,80 @@ see "Session 15" below and
 current 32×32 architecture's target recovers only 5-28% of true dots as
 distinguishable peaks even in the ideal noise-free case; 128×128 is the
 minimum resolution that recovers 100% across the observed density
-range. Do not assume a trained model in this repo means ML detection is
-production-ready; it explicitly is not, per measured evidence. No
-retraining or production integration has occurred at any point in
-sessions 13-15.
+range. **Session 16 built a new 128×128 model + REST API + frontend
+upload page against that finding, but as of this update the model is
+still training and `experiments/m4_2/evaluate_m4_2.py` has not been run
+— there is NO result yet on whether M4.2 actually beats classical.**
+Do not assume a trained model or a working API in this repo means ML
+detection is production-ready or evaluated; it explicitly is not yet,
+per measured evidence. No production integration has occurred at any
+point in sessions 13-16; `detector=classical` remains the default
+everywhere.
+
+## Session 16 — M4.2 Phases A–N: API + frontend integration (CODE COMPLETE, EVALUATION PENDING)
+
+**Scope**: implements the M4.2 plan (`docs/M4_2_IMPLEMENTATION_PLAN.md`,
+written this session after auditing M4.1 + the frozen ML contract +
+existing frontend — see that file for the full audit and scope
+decisions). Delivers a new 128×128-output encoder-decoder model
+(`experiments/m4_2/model.py`), a new minimal FastAPI service (`api/`),
+and a new frontend upload/detect page (`frontend/frontend/src/pages/Detect/`,
+route `/detect`) — all wired together, none of it faking a result that
+doesn't exist yet.
+
+**What is done and tested:**
+- `experiments/m4_2/model.py`: new U-Net-style encoder-decoder,
+  native 128×128 single-channel output (never an upsampled 32×32).
+- `experiments/m4_2/ml_lattice_detector.py`: same `MLLatticeDetector`
+  Protocol as M4.1 (`engine/ml_contract.py`, unmodified), pointed at
+  the new model.
+- `api/` (new top-level dir — no backend existed anywhere before this):
+  `main.py` (FastAPI app), `detectors.py` (`ClassicalDetector`/
+  `MLDetector` → common `DetectionResult`), `canonical.py` (engine
+  objects → plain-JSON-safe shapes, no NetworkX/MotifPlacement ever
+  returned directly), `reconstruct_adapter.py`, `schemas.py`. Endpoints:
+  `POST /api/v1/detect`, `/analyze`, `/reconstruct`, `/compare-detectors`,
+  `GET /api/v1/health`, `/model` — contracts documented in
+  `docs/M4_2_API.md`. `detector=classical` is the default everywhere;
+  `detector=ml` failures return explicit HTTP 503, never a silent
+  fallback. Uploaded images: written to temp, processed, deleted —
+  never persisted or logged.
+- Frontend: `src/pages/Detect/Detect.jsx` (new page, does not modify
+  the existing static `/analyze` page — that page stays a precomputed-
+  dataset walkthrough, per `CLAUDE.md`'s "don't fake image-analysis"
+  rule) + `src/lib/api/*.js` (plain JS client, JSDoc-documented shapes
+  — no TypeScript toolchain introduced, project has none).
+- `requirements.txt` updated: `fastapi`, `uvicorn`, `python-multipart`
+  added (already present in the dev environment prior to this session,
+  same pattern as `torch` in M4.1 — declared for reproducibility, not
+  newly introduced).
+- Tests, all passing this session: core `tests/` 123/123 (unchanged),
+  `api/tests/` 11/11 (new), `experiments/m4_2/tests/` 18/18 (new) — 152
+  total. Frontend: `npm run lint` 0 errors, `npm run build` clean.
+
+**Explicitly NOT done yet — do not assume otherwise:**
+1. **Training is still running as of this update**
+   (`experiments/m4_2/train.py`, checkpoint
+   `experiments/m4_2/results/dot_heatmap_net_v2.pt` exists and is being
+   overwritten as val_loss improves; `results/training_log.json` does
+   not exist yet — it's only written when training completes). No
+   final train/val loss numbers exist yet.
+2. **`experiments/m4_2/evaluate_m4_2.py` has not been run.** No
+   comparison of the new 128×128 model against classical exists. The
+   M4.1 headline recommendation (do not integrate the learned detector)
+   has NOT been superseded — there is simply no new evidence yet either
+   way. Do not report or imply an M4.2 result until this script has
+   actually run and its output has been read.
+3. **`kolam109` is excluded from this training run's data** (M4.2 plan's
+   own scope finding: kolam109 averages ~6800-7000 dots/pattern, 128×128
+   only recovers 2.1% of those as distinct peaks — a density this
+   project has no evidence 128×128 can represent; see
+   `docs/M4_2_IMPLEMENTATION_PLAN.md` Scope decision 3).
+4. Next session should: confirm training finished (check for
+   `experiments/m4_2/results/training_log.json`), run
+   `evaluate_m4_2.py`, and update this section with the actual result
+   — positive or negative — before making any claim about M4.2's
+   outcome.
 
 Work from sessions 4-12 lives on branch `feature/generation-pipeline`
 (pushed to origin, not yet merged to `master`) —

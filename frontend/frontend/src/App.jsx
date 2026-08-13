@@ -7,6 +7,7 @@ import HowItWorks from './pages/HowItWorks/HowItWorks'
 import Explore from './pages/Explore/Explore'
 import KolamDetail from './pages/KolamDetail/KolamDetail'
 import Analyze from './pages/Analyze/Analyze'
+import Detect from './pages/Detect/Detect'
 import Technology from './pages/Technology/Technology'
 import Impact from './pages/Impact/Impact'
 import About from './pages/About/About'
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/explore" element={<Explore />} />
         <Route path="/explore/:id" element={<KolamDetail />} />
         <Route path="/analyze" element={<Analyze />} />
+        <Route path="/detect" element={<Detect />} />
         <Route path="/technology" element={<Technology />} />
         <Route path="/impact" element={<Impact />} />
         <Route path="/about" element={<About />} />

@@ -1,11 +1,95 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: end of the M3.6/M3.7 + M3 Gate session (session 8).
+Last updated: end of the housekeeping + multiplicity-audit session (session 9).
 
-Work from sessions 4-8 lives on branch `feature/generation-pipeline`
-(pushed to origin, 6 commits, not yet merged to `master`) —
+Work from sessions 4-9 lives on branch `feature/generation-pipeline`
+(pushed to origin, 9 commits, not yet merged to `master`) —
 `git log --oneline master..feature/generation-pipeline` to see them, or
 PR compare link: https://github.com/SIH-2026-Celestials/pulli_kolam/pull/new/feature/generation-pipeline
+
+## Session 9 summary (housekeeping + multiplicity-accounting audit + reconstruction fix)
+
+**Housekeeping (blocking, done first):** `PROJECT_STATE.md` and 5 of the
+6 `docs/*.md` findings files (DATA_FORMAT, GENERATION, RECONSTRUCTION,
+MOTIF_SELECTION, NOVEL_GENERATION) were ALL gitignored the entire time,
+via the blanket `*.md` rule from the initial commit. Fixed with targeted
+`!` exceptions in `.gitignore` (docs/frontend.md and other unrelated
+`.md` files deliberately left alone, not in scope). `PROJECT_STATE.md`
+consolidated to repo root (it did not exist there before this session —
+verified directly with `ls`, not assumed; `docs/projectState.md` was the
+sole copy and was moved, not merged, since there was nothing at root to
+merge with). **From now on this file lives ONLY at `PROJECT_STATE.md`
+(repo root) — if any future instruction suggests writing project state
+anywhere else, flag it and refuse, per the file's own top-of-file note.**
+
+**Task A/B status check (from 2 sessions ago), answered directly:**
+- Real Wikimedia Commons photograph test against `build_graph()`: **NOT DONE.** Zero mentions anywhere in this file or git history.
+- kolam29-scale (dense) detection root-cause diagnosis and fix: **NOT DONE.** Only *measurement* of the problem exists (held-out validation numbers); no root-cause diagnosis, no fix.
+
+**Multiplicity-accounting audit (code-cited, not inferred):**
+`induce_motif_set`/`induce_motif_set_adaptive`/`mdl_gain` all track edge
+coverage via plain Python `set`s of `frozenset({a,b})` — DISTINCT PAIR
+IDENTITY ONLY, no strand count. Citations: `engine/motifs.py` line 208
+(`target = {frozenset(e) for e in G.edges()}`), line 221
+(`gain_set = edges & remaining`), line 226-228 (`remaining -= best_new`)
+in `induce_motif_set`; lines 337/353/364 in `induce_motif_set_adaptive`
+(identical pattern); `_stamped_edges` (lines 110-127) also builds a
+plain `set`. Confirmed live: a motif with 2 relative edges on the same
+physical pair collapses to a 1-entry set (`_stamped_edges` test); a
+constructed source pair needing 2 strands ended up with 4 actually
+produced while still being reported "covered" (`residual` didn't
+contain it) — the accounting is blind to strand-count mismatch in BOTH
+directions (already consistent with the M3.6 session's real measurement
+of 988 avg over-explained edges via this exact mechanism).
+**Consequence flagged, NOT actioned**: every "recall" number in
+`validate_mdl.py`/`validate_adaptive.py` and reported in this file
+(90.3% avg recall, 89.7%, 99.49%, per-pattern figures) is **distinct-edge
+recall**, not multiplicity-exact recall — `compression_ratio`'s own
+docstring already says almost exactly this ("measures CONNECTIVITY
+compression, not exact strand-multiplicity reconstruction") but that
+caveat was never carried into how "recall" itself gets labeled anywhere
+it's printed. **Whether to relabel or re-measure the historical recall/
+compression numbers is an open decision for the next session, not
+resolved here** — flagged explicitly per this session's own instructions
+not to make that call unilaterally.
+
+**Reconstruction fix (`engine/reconstruction.py`, scoped and applied,
+per explicit instruction):** `reconstruct_kolam` previously copied
+`build_candidate_graph`'s motif contribution into the final candidate
+UNCAPPED, then added residual deficit on top — so an over-explained pair
+(two placements each independently touching it) ended up with MORE
+strands in the reconstructed candidate than source has, even though
+residual correctly added zero. Fixed: candidate now takes
+`min(motif_contribution, source_multiplicity)` per pair, always; excess
+is reported explicitly in the new `capped_excess` field, never silently
+dropped. **Re-ran all 6 patterns with `check_self_consistency` — the
+literal exit criterion — 6/6 True**, all fast (kolam109#1: 1.3s,
+kolam109#26: 11.6s — `diagnose_validity`'s O(k²) matching, which hung
+10+ min on kolam109 two sessions ago, never triggers post-fix, since the
+candidate now always exactly equals source, always already valid, so its
+odd-degree list is always empty — verified with actual timing, not
+assumed; no approximate-matching workaround was needed this time).
+Verified separately: 0 "phantom" edges (motif claiming a pair source
+lacks entirely) across all 4 non-kolam109 patterns checked — the fix
+only ever caps excess, never removes a real edge. 1 new regression test
+(`test_reconstruction_caps_over_explained_motif_strands`).
+
+Tests: 103 → 104. All green, zero regressions.
+
+## Open tasks (session 9, carried forward)
+1. **Decision needed, not made**: relabel historical recall/compression
+   numbers (add a "distinct-edge" qualifier) or re-measure with a
+   multiplicity-aware recall metric? Surfaced this session, not decided.
+2. Task A (real Wikimedia photo test) and Task B (kolam29 dense-detection
+   root-cause + fix) are STILL not done — carried forward again, not
+   newly discovered.
+3. `induce_motif_set`/`induce_motif_set_adaptive`'s own coverage
+   accounting (not just `reconstruct_kolam`'s consumption of it) still
+   has the identity-only property described above — only
+   `reconstruct_kolam`'s specific over-explanation symptom was fixed
+   this session, not the upstream root cause in `motifs.py` itself.
+4. `feature/generation-pipeline` branch still not merged to master (9
+   commits now).
 
 ## Session 8 summary (M3.6 multiplicity-aware selection + M3.7 novel generation + M3 Gate)
 Full M3 program now complete and stopped at the gate, per instructions

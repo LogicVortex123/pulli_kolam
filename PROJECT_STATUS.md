@@ -1,6 +1,6 @@
 # PROJECT STATUS — PULLI Kolam Design-Principle Engine
 
-**Last Updated:** 2026-08-13 (lint fixes)  
+**Last Updated:** 2026-08-13 (Generate page route + 404 fallback)  
 **Branch:** `feat/frontend-clone-ui`
 
 ---
@@ -43,6 +43,10 @@ PULLI is a computational platform that uses ML, computer vision, and graph theor
 | Footer component | ✅ Complete | Maroon, copyright, AICTE initiative credit |
 | File upload functionality | ✅ Complete | Triggers analysis pipeline simulation |
 | Generate More interactivity | ✅ Complete | Cycles between two variation sets |
+| About page | ✅ Complete | Routed at `/about` |
+| How it Works page | ✅ Complete | Routed at `/how-it-works` |
+| Generate page | ✅ Complete | Routed at `/generate`; fixes navbar link that previously 404'd blank (no matching route) |
+| 404 / catch-all route | ✅ Complete | Prevents blank page on unmatched routes |
 | `npm run build` | ✅ Passing | Zero errors, clean production bundle |
 
 ---
@@ -66,8 +70,6 @@ PULLI is a computational platform that uses ML, computer vision, and graph theor
 | REST API (FastAPI) for analysis endpoint | 📋 Planned | |
 | Real-time websocket progress for analysis steps | 📋 Planned | |
 | Kolam gallery with search and filters | 📋 Planned | |
-| About page | 📋 Planned | |
-| How it Works page | 📋 Planned | |
 | Mobile responsive layouts (tablet + mobile) | 📋 Planned | Desktop-first currently |
 | PWA / offline capability | 📋 Planned | |
 

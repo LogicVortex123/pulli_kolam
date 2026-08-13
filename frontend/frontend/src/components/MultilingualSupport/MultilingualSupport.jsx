@@ -39,7 +39,9 @@ export default function MultilingualSupport() {
                 aria-label={`${l.label} — ${l.nativeName}`}
               >
                 <span className="ml-lang-icon" aria-hidden="true">{l.script}</span>
-                <span className="ml-lang-name">{l.nativeName}</span>
+                <span className="ml-lang-name">
+                  {l.code === 'en' ? l.nativeName : `${l.nativeName} (${l.label})`}
+                </span>
                 {isSelected && (
                   <span className="ml-lang-check" aria-hidden="true">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -98,7 +100,7 @@ export default function MultilingualSupport() {
                   >
                     <span className="ml-lang-icon" aria-hidden="true">{l.script}</span>
                     <span className="ml-lang-name">
-                      {l.nativeName}
+                      {l.code === 'en' ? l.nativeName : `${l.nativeName} (${l.label})`}
                       {isPreview && <span className="ml-preview-tag">soon</span>}
                     </span>
                     {isSelected && (

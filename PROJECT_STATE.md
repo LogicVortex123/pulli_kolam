@@ -41,17 +41,24 @@ produced while still being reported "covered" (`residual` didn't
 contain it) — the accounting is blind to strand-count mismatch in BOTH
 directions (already consistent with the M3.6 session's real measurement
 of 988 avg over-explained edges via this exact mechanism).
-**Consequence flagged, NOT actioned**: every "recall" number in
-`validate_mdl.py`/`validate_adaptive.py` and reported in this file
-(90.3% avg recall, 89.7%, 99.49%, per-pattern figures) is **distinct-edge
-recall**, not multiplicity-exact recall — `compression_ratio`'s own
-docstring already says almost exactly this ("measures CONNECTIVITY
-compression, not exact strand-multiplicity reconstruction") but that
-caveat was never carried into how "recall" itself gets labeled anywhere
-it's printed. **Whether to relabel or re-measure the historical recall/
-compression numbers is an open decision for the next session, not
-resolved here** — flagged explicitly per this session's own instructions
-not to make that call unilaterally.
+**Consequence — relabeled this session (session 10, Item 1), re-measurement queued next (Item 2):**
+every "recall"/"compression ratio" number in `validate_mdl.py`/
+`validate_adaptive.py` and reported in this file (90.3% avg recall,
+89.7%, 99.49%, per-pattern figures, 2.40x/1.82x/1.64x compression) is
+**distinct-edge recall / distinct-edge compression ratio** — identity-
+only (does a pair have >=1 strand explained, ignoring true strand
+count), not multiplicity-exact. `compression_ratio`'s own docstring
+already said almost exactly this ("measures CONNECTIVITY compression,
+not exact strand-multiplicity reconstruction") but that caveat had never
+been carried into how "recall" itself gets labeled anywhere it's
+printed — every occurrence tied to `induce_motif_set`/
+`induce_motif_set_adaptive`/MDL-gating in this file has now been
+relabeled with an explicit "distinct-edge" qualifier (see the
+self-correction-discipline list and the results table below). The
+underlying NUMBERS are UNCHANGED by this relabeling — this is a
+labeling fix, not a re-measurement. A multiplicity-aware re-measurement,
+using the upstream fix ported from `reconstruct_kolam`'s over-explanation
+correction, is the next item (Item 2, this same session).
 
 **Reconstruction fix (`engine/reconstruction.py`, scoped and applied,
 per explicit instruction):** `reconstruct_kolam` previously copied
@@ -77,9 +84,9 @@ only ever caps excess, never removes a real edge. 1 new regression test
 Tests: 103 → 104. All green, zero regressions.
 
 ## Open tasks (session 9, carried forward)
-1. **Decision needed, not made**: relabel historical recall/compression
-   numbers (add a "distinct-edge" qualifier) or re-measure with a
-   multiplicity-aware recall metric? Surfaced this session, not decided.
+1. Relabeling done this session (session 10, Item 1): historical recall/
+   compression numbers now explicitly say "distinct-edge." Re-measurement
+   with a multiplicity-aware metric is Item 2, same session, still to do.
 2. Task A (real Wikimedia photo test) and Task B (kolam29 dense-detection
    root-cause + fix) are STILL not done — carried forward again, not
    newly discovered.
@@ -373,19 +380,21 @@ against itself, then fixed:
    vertices from dangling boundary edges). Conclusion: don't hand-tune synthetic ground
    truth — use real, pre-verified data instead (→ pivoted to the Kaggle dataset).
 2. **Compression ratio formula**: originally divided total edges by one motif's size,
-   silently assuming 100% coverage at zero placement cost. With real recall at 28%, the
-   reported 164x compression ratio was fiction. Fixed to
+   silently assuming 100% coverage at zero placement cost. With real distinct-edge recall
+   at 28%, the reported 164x distinct-edge compression ratio was fiction. Fixed to
    `raw_size / (motif_rules + placements + residual_edges)`, consistent edge-identity basis.
-3. **Coverage-vs-compression conflation**: adding motifs to maximize recall (via a
-   `max_motifs_per_radius` count cap) was implicitly treated as the same objective as
-   minimizing description length. It isn't — adaptive multi-radius induction won on recall
-   (89.7%→99.5%) but LOST on compression on 15/15 patterns (1.82→1.64). Fixed by replacing
-   the count cap with MDL-gated acceptance (add a motif only if it has positive net
-   description-length gain) — this landed at 90.3% recall, 2.40x compression (better than
-   both priors on compression), with 6/15 patterns getting slightly LOWER recall than the
-   old greedy version, correctly, because the gate refuses trades that don't pay for
-   themselves. Proven with a dedicated test
-   (`rejects_expensive_one_off_despite_recall_gain`).
+   (All "recall"/"compression ratio" figures in this section are DISTINCT-EDGE metrics —
+   see the relabeling note under "Real measured numbers on record" below.)
+3. **Coverage-vs-compression conflation**: adding motifs to maximize distinct-edge recall
+   (via a `max_motifs_per_radius` count cap) was implicitly treated as the same objective as
+   minimizing description length. It isn't — adaptive multi-radius induction won on
+   distinct-edge recall (89.7%→99.5%) but LOST on distinct-edge compression on 15/15 patterns
+   (1.82→1.64). Fixed by replacing the count cap with MDL-gated acceptance (add a motif only
+   if it has positive net description-length gain) — this landed at 90.3% distinct-edge
+   recall, 2.40x distinct-edge compression (better than both priors on compression), with
+   6/15 patterns getting slightly LOWER distinct-edge recall than the old greedy version,
+   correctly, because the gate refuses trades that don't pay for themselves. Proven with a
+   dedicated test (`rejects_expensive_one_off_despite_recall_gain`).
 4. **Image-pipeline validity gate mismatch**: even near-perfect image reconstruction
    (>94% edge recall) fails the strict Eulerian gate on 4/7 synthetic photos, because parity
    is fragile to 1-2 multiplicity errors. Motif induction degrades gracefully on the same
@@ -405,8 +414,8 @@ against itself, then fixed:
 ## Real measured numbers on record (all checked per-pattern, not just averaged)
 | Metric | Value | Source |
 |---|---|---|
-| CSV-based motif induction, MDL-gated: avg recall | 90.3% | validate_adaptive.py + MDL gating, 15 patterns across kolam19/29/109 |
-| CSV-based, MDL-gated: avg compression ratio | 2.40x | same run |
+| CSV-based motif induction, MDL-gated: avg DISTINCT-EDGE recall (not multiplicity-exact — see note below) | 90.3% | validate_adaptive.py + MDL gating, 15 patterns across kolam19/29/109 |
+| CSV-based, MDL-gated: avg DISTINCT-EDGE compression ratio (not multiplicity-exact — see note below) | 2.40x | same run |
 | CSV-based, MDL-gated: motifs needed | 19.6 avg | same run |
 | Image pipeline, dot detection (TUNED set, 7 photos) | precision 0.9997 / recall 0.9803 | generate_synthetic_photos.py, kolam19_k1/2/3/27/50 + kolam29_k1/2 |
 | Image pipeline, edge tracing, exact-multiplicity (TUNED set) | precision 0.9758 / recall 0.9487 | same 7 photos |

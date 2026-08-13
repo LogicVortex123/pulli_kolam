@@ -48,8 +48,11 @@ export function saveLanguage(code) {
 }
 
 /**
- * Resolve a dot-path key like "nav.home" from a translations object.
+ * Resolve a dot-path key like "nav.home" from a translations object,
+ * optionally interpolating {placeholder} tokens from `vars`.
  */
-export function resolve(translations, key) {
-  return key.split('.').reduce((obj, k) => (obj ? obj[k] : key), translations) ?? key
+export function resolve(translations, key, vars) {
+  const value = key.split('.').reduce((obj, k) => (obj ? obj[k] : undefined), translations) ?? key
+  if (!vars || typeof value !== 'string') return value
+  return value.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? vars[name] : match))
 }

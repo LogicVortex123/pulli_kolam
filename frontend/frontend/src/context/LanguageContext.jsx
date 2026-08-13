@@ -13,9 +13,9 @@ export function LanguageProvider({ children }) {
     }
   }, [])
 
-  /** t('nav.home') → translated string */
+  /** t('nav.home') → translated string. t('a.b', { n: 5 }) interpolates {n}. */
   const t = useCallback(
-    (key) => resolve(TRANSLATIONS[lang], key),
+    (key, vars) => resolve(TRANSLATIONS[lang], key, vars),
     [lang]
   )
 

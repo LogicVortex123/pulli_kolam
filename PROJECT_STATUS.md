@@ -1,7 +1,7 @@
 # PROJECT STATUS — PULLI Kolam Design-Principle Engine
 
-**Last Updated:** 2026-08-13 (design-system tokens/utilities fix — secondary pages were unstyled)  
-**Branch:** `feat/frontend-clone-ui`
+**Last Updated:** 2026-08-13 (merged changes)  
+**Branch:** `master`
 
 ---
 

@@ -264,7 +264,7 @@ export default function Detect() {
                 <p className="body-text body-text--sm detect-placeholder">
                   Checks whether the motif/residual decomposition of THIS pattern's own detected
                   structure reproduces a connected, valid graph. This is not novel-pattern
-                  generation — that capability remains experimental and is not exposed here.
+                  generation - that capability remains experimental and is not exposed here.
                 </p>
                 {reconstruction.error && (
                   <p className="detect-error" role="alert">{reconstruction.error}</p>

@@ -31,11 +31,13 @@ from experiments.m4_2.model import DotHeatmapNetV2, MODEL_INPUT_SIZE, OUTPUT_STR
 CHECKPOINT_PATH = os.path.join(os.path.dirname(__file__), "results", "dot_heatmap_net_v2.pt")
 MODEL_VERSION = "m4.2-128"
 
-# Selected via Phase E's validation-only parameter sweep -- see
-# experiments/m4_2/results/peak_sweep.json and docs/M4_2_MODEL.md for
-# the documented selection. NOT tuned against the test set.
-CONFIDENCE_THRESHOLD = 0.4
-MIN_PEAK_DISTANCE_HEATMAP_CELLS = 2.5
+# Selected via Phase E's validation-only parameter sweep (25-point grid,
+# experiments/m4_2/peak_sweep.py, run against experiments/m4_2/data/val
+# -- NEVER the test set): best F1 (0.9993) at threshold=0.6,
+# min_distance=2.0 -- see experiments/m4_2/results/peak_sweep.json for
+# the full table and docs/M4_2_MODEL.md for the documented selection.
+CONFIDENCE_THRESHOLD = 0.6
+MIN_PEAK_DISTANCE_HEATMAP_CELLS = 2.0
 
 
 class MalformedOutputError(RuntimeError):

@@ -72,6 +72,10 @@ const en = {
     strokeVal: 'Single Continuous',
     complexityVal: 'Medium',
   },
+  home: {
+    illustrativeBadge: 'Illustrative Example',
+    tryDetectCta: 'Try it with your own photo →',
+  },
   multilingual: {
     title: 'Multilingual Support',
     subtitle: 'Available in multiple Indian languages\nto promote accessibility and inclusivity.',

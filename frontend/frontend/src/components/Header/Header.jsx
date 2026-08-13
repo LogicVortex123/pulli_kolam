@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router-dom'
 import { ChevronDown, Sun, Moon, User } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { LANGUAGES } from '../../i18n/index'
+import PulliLogo from '../../assets/PULLI-LOGO.svg'
 import './Header.css'
 
 export default function Header() {
@@ -58,21 +59,7 @@ export default function Header() {
         {/* Left: Brand Logo & Title */}
         <Link to="/" className="navbar-brand">
           <div className="brand-icon-wrapper">
-            <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              {/* 3x3 Pulli (dots) grid */}
-              <circle cx="30" cy="30" r="2.2" fill="#B88735" />
-              <circle cx="50" cy="30" r="2.2" fill="#B88735" />
-              <circle cx="70" cy="30" r="2.2" fill="#B88735" />
-              <circle cx="30" cy="50" r="2.2" fill="#B88735" />
-              <circle cx="50" cy="50" r="2.8" fill="#B88735" />
-              <circle cx="70" cy="50" r="2.2" fill="#B88735" />
-              <circle cx="30" cy="70" r="2.2" fill="#B88735" />
-              <circle cx="50" cy="70" r="2.2" fill="#B88735" />
-              <circle cx="70" cy="70" r="2.2" fill="#B88735" />
-              {/* Continuous loop line (Kambi) */}
-              <path d="M 50 35 C 42 22, 42 8, 50 8 C 58 8, 58 22, 50 35 C 58 35, 68 18, 75 25 C 82 32, 65 42, 65 50 C 78 46, 92 42, 92 50 C 92 58, 78 54, 65 50 C 65 58, 82 68, 75 75 C 68 82, 58 65, 50 65 C 54 78, 58 92, 50 92 C 42 92, 46 78, 50 65 C 42 65, 32 82, 25 75 C 18 68, 35 58, 35 50 C 22 54, 8 58, 8 50 C 8 42, 22 46, 35 50 C 35 42, 18 32, 25 25 C 32 18, 42 35, 50 35 Z" 
-                    stroke="#B88735" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </svg>
+            <img src={PulliLogo} alt="PULLI Logo" className="brand-logo-img" />
           </div>
           <div className="brand-text">
             <span className="brand-title">PULLI</span>
@@ -142,7 +129,8 @@ export default function Header() {
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
 
-          <button className="btn-login">
+          {/* No auth backend exists yet -- disabled rather than a dead button that silently does nothing. */}
+          <button className="btn-login" disabled title="Accounts are not available yet">
             <User size={16} />
             <span>Login</span>
           </button>

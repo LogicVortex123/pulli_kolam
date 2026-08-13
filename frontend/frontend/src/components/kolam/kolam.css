@@ -1,0 +1,54 @@
+/* ── Kolam Decorative Patterns ── */
+
+.kolam-corner-decor {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.kolam-corner-decor.top-left {
+  top: 12px;
+  left: 12px;
+}
+
+.kolam-corner-decor.top-right {
+  top: 12px;
+  right: 12px;
+  transform: scaleX(-1);
+}
+
+.kolam-corner-decor.bottom-left {
+  bottom: 12px;
+  left: 12px;
+  transform: scaleY(-1);
+}
+
+.kolam-corner-decor.bottom-right {
+  bottom: 12px;
+  right: 12px;
+  transform: scale(-1);
+}
+
+.kolam-decor-wrapper {
+  display: block;
+  pointer-events: none;
+}
+
+.kolam-decor-wrapper.horizontal {
+  width: 100%;
+}
+
+.kolam-grid-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.kolam-motif-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+}

@@ -72,6 +72,10 @@ const te = {
     strokeVal: 'ఒకే నిరంతర',
     complexityVal: 'మధ్యస్థం',
   },
+  home: {
+    illustrativeBadge: 'ఉదాహరణ మాత్రమే',
+    tryDetectCta: 'మీ స్వంత ఫోటోతో ప్రయత్నించండి →',
+  },
   multilingual: {
     title: 'బహుభాషా మద్దతు',
     subtitle: 'ప్రాప్యత మరియు సమగ్రతను ప్రోత్సహించడానికి\nబహుళ భారతీయ భాషలలో అందుబాటులో ఉంది.',

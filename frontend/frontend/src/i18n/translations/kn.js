@@ -72,6 +72,10 @@ const kn = {
     strokeVal: 'ಏಕ ನಿರಂತರ',
     complexityVal: 'ಮಧ್ಯಮ',
   },
+  home: {
+    illustrativeBadge: 'ವಿವರಣಾತ್ಮಕ ಉದಾಹರಣೆ',
+    tryDetectCta: 'ನಿಮ್ಮ ಸ್ವಂತ ಫೋಟೋದೊಂದಿಗೆ ಪ್ರಯತ್ನಿಸಿ →',
+  },
   multilingual: {
     title: 'ಬಹುಭಾಷಾ ಬೆಂಬಲ',
     subtitle: 'ಪ್ರವೇಶಯೋಗ್ಯತೆ ಮತ್ತು ಅಂತರ್ಗತತೆಯನ್ನು ಉತ್ತೇಜಿಸಲು\nಬಹು ಭಾರತೀಯ ಭಾಷೆಗಳಲ್ಲಿ ಲಭ್ಯವಿದೆ.',

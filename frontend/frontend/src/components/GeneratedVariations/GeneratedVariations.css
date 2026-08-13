@@ -1,6 +1,6 @@
 .generated-card {
   width: 100%;
-  background-color: #FFFFFF;
+  background-color: var(--color-white);
   border: 1px solid var(--color-card-border);
   border-radius: 14px;
   padding: 24px 26px;
@@ -40,7 +40,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background-color: #FAF7F0;
+  background-color: var(--color-paper-light);
   border: 1px solid var(--color-card-border);
   color: var(--color-text-dark);
   padding: 8px 16px;
@@ -53,8 +53,8 @@
 }
 
 .btn-generate-more:hover {
-  background-color: #F4EDE0;
-  border-color: #CFC5B8;
+  background-color: var(--color-paper-dark);
+  border-color: var(--color-text-muted);
 }
 
 .refresh-icon {
@@ -90,8 +90,8 @@
 .rule-summary-container {
   display: flex;
   flex-direction: column;
-  background-color: #FAF7F0;
-  border: 1px solid #EAE2D5;
+  background-color: var(--color-paper-light);
+  border: 1px solid var(--color-card-border);
   border-radius: 10px;
   padding: 16px 20px;
 }
@@ -115,7 +115,7 @@
   align-items: center;
   gap: 10px;
   padding: 0 10px;
-  border-right: 1px solid #E4DCD0;
+  border-right: 1px solid var(--color-card-border);
 }
 
 .metric-col:first-child {

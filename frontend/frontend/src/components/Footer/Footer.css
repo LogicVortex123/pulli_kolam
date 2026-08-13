@@ -13,7 +13,7 @@
   width: 100%;
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 0 40px;
+  padding: 0 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,22 +29,6 @@
 .footer-center {
   font-weight: 500;
   color: #D4B07B;
-}
-
-.footer-right {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.footer-link {
-  color: #E8E0D5;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.footer-link:hover {
-  color: #FFFFFF;
 }
 
 .footer-pattern {

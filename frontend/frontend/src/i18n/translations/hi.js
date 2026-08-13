@@ -72,6 +72,10 @@ const hi = {
     strokeVal: 'एकल सतत',
     complexityVal: 'मध्यम',
   },
+  home: {
+    illustrativeBadge: 'उदाहरणात्मक उदाहरण',
+    tryDetectCta: 'अपनी फ़ोटो के साथ आज़माएं →',
+  },
   multilingual: {
     title: 'बहुभाषी समर्थन',
     subtitle: 'पहुँच और समावेशिता को बढ़ावा देने के लिए\nकई भारतीय भाषाओं में उपलब्ध।',

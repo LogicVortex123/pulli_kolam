@@ -1,6 +1,8 @@
-import { useCallback, useRef, useState } from 'react'
-import { detect, analyze, compareDetectors } from '../../lib/api/kolam'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { detect, analyze, reconstruct, compareDetectors } from '../../lib/api/kolam'
 import { categorizeCompareDots } from '../../lib/api/kolam'
+import { validateImageFile } from '../../lib/validateImageFile'
 import './Detect.css'
 
 const MODES = [
@@ -10,6 +12,7 @@ const MODES = [
 ]
 
 export default function Detect() {
+  const location = useLocation()
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [mode, setMode] = useState('classical')
@@ -18,6 +21,10 @@ export default function Detect() {
   const [detectResult, setDetectResult] = useState(null)
   const [compareResult, setCompareResult] = useState(null)
   const [analysis, setAnalysis] = useState(null)
+  const [reconstruction, setReconstruction] = useState(null)
+  const [reconstructing, setReconstructing] = useState(false)
+  const [reconstructError, setReconstructError] = useState(null)
+  const [analysisError, setAnalysisError] = useState(null)
   const [imgNaturalSize, setImgNaturalSize] = useState(null)
   const [imgRenderedSize, setImgRenderedSize] = useState(null)
   const imgRef = useRef(null)
@@ -25,13 +32,36 @@ export default function Detect() {
 
   const onFileSelected = useCallback((f) => {
     if (!f) return
+    const result = validateImageFile(f)
+    if (!result.valid) {
+      setFile(null)
+      setPreviewUrl(null)
+      setStatus('error')
+      setErrorMsg(result.message)
+      return
+    }
     setFile(f)
     setPreviewUrl(URL.createObjectURL(f))
     setDetectResult(null)
     setCompareResult(null)
     setAnalysis(null)
+    setAnalysisError(null)
+    setReconstruction(null)
+    setReconstructError(null)
     setStatus('idle')
     setErrorMsg(null)
+  }, [])
+
+  // A file handed off from the homepage's upload CTA (Hero.jsx) arrives
+  // via router state -- pick it up once on mount so the user doesn't have
+  // to re-select it here. Deferred a tick so this doesn't set state
+  // synchronously within the effect body (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    const incoming = location.state?.incomingFile
+    if (!incoming) return
+    const id = setTimeout(() => onFileSelected(incoming), 0)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const onDrop = useCallback((e) => {
@@ -54,6 +84,9 @@ export default function Detect() {
     setDetectResult(null)
     setCompareResult(null)
     setAnalysis(null)
+    setAnalysisError(null)
+    setReconstruction(null)
+    setReconstructError(null)
 
     if (mode === 'compare') {
       const { data, error } = await compareDetectors(file)
@@ -75,13 +108,43 @@ export default function Detect() {
     }
     setDetectResult(data)
 
-    const { data: analyzeData } = await analyze(file, mode)
-    if (analyzeData) setAnalysis(analyzeData)
+    const { data: analyzeData, error: analyzeErr } = await analyze(file, mode)
+    if (analyzeData) {
+      setAnalysis(analyzeData)
+    } else if (analyzeErr) {
+      // Detection succeeded (result above is real and shown); only the
+      // follow-up structural-analysis call failed -- say that specifically
+      // rather than silently omitting the section or claiming everything failed.
+      setAnalysisError(describeError(analyzeErr))
+    }
 
     setStatus('success')
   }
 
+  const handleReconstruct = async () => {
+    if (!file || mode === 'compare') return
+    setReconstructing(true)
+    setReconstructError(null)
+    const { data, error } = await reconstruct(file, mode)
+    setReconstructing(false)
+    if (error) {
+      setReconstructError(describeError(error))
+      return
+    }
+    setReconstruction(data)
+  }
+
   const scale = imgNaturalSize && imgRenderedSize ? imgRenderedSize.width / imgNaturalSize.width : 1
+
+  // The backend's `agreement` counts (api/main.py) match each classical dot to
+  // its single nearest ML dot independently, without deduplicating which ML
+  // dot was already claimed -- on images with a large count mismatch this can
+  // double-count the same ML dot as "agreeing" with several classical dots,
+  // which can even push ml_only negative. categorizeCompareDots() (used for
+  // the overlay markers below) does a proper one-to-one match, so the summary
+  // numbers are derived from that instead of trusting compareResult.agreement
+  // directly -- never show a number known to be arithmetically wrong.
+  const compareCounts = compareResult ? categorizeCompareDots(compareResult) : null
 
   return (
     <main id="main-content" className="detect-page">
@@ -156,8 +219,21 @@ export default function Detect() {
               {status === 'loading' ? 'Analyzing…' : 'Analyze Kolam'}
             </button>
 
+            {mode !== 'compare' && status === 'success' && detectResult && (
+              <button
+                className="btn btn--outline reconstruct-btn"
+                disabled={reconstructing}
+                onClick={handleReconstruct}
+              >
+                {reconstructing ? 'Reconstructing…' : 'Reconstruct from Motifs'}
+              </button>
+            )}
+
             {status === 'error' && (
               <p className="detect-error" role="alert">{errorMsg}</p>
+            )}
+            {reconstructError && (
+              <p className="detect-error" role="alert">{reconstructError}</p>
             )}
           </div>
 
@@ -166,6 +242,12 @@ export default function Detect() {
             {status === 'idle' && (
               <p className="body-text body-text--sm detect-placeholder">
                 Results will appear here after you upload an image and choose a detector.
+              </p>
+            )}
+
+            {status === 'success' && !(mode === 'compare' ? compareResult : detectResult) && (
+              <p className="body-text body-text--sm detect-placeholder">
+                Switched detector -- click &quot;Analyze Kolam&quot; to run {mode === 'compare' ? 'a comparison' : `the ${mode} detector`} on this image.
               </p>
             )}
 
@@ -201,9 +283,9 @@ export default function Detect() {
                   </div>
                 </div>
                 <div className="step-table">
-                  <div className="step-row"><span className="label-tech">Agreeing dots</span><strong className="legend-agree">{compareResult.agreement.agreeing_dots ?? '—'}</strong></div>
-                  <div className="step-row"><span className="label-tech">ML only</span><strong className="legend-ml">{compareResult.agreement.ml_only ?? '—'}</strong></div>
-                  <div className="step-row"><span className="label-tech">Classical only</span><strong className="legend-classical">{compareResult.agreement.classical_only ?? '—'}</strong></div>
+                  <div className="step-row"><span className="label-tech">Agreeing dots</span><strong className="legend-agree">{compareCounts.agree.length}</strong></div>
+                  <div className="step-row"><span className="label-tech">ML only</span><strong className="legend-ml">{compareCounts.mlOnly.length}</strong></div>
+                  <div className="step-row"><span className="label-tech">Classical only</span><strong className="legend-classical">{compareCounts.classicalOnly.length}</strong></div>
                 </div>
                 <div className="overlay-legend">
                   <span><i className="swatch legend-agree" /> Agreement</span>
@@ -225,6 +307,34 @@ export default function Detect() {
                   <div className="step-row"><span className="label-tech">Eulerian circuit</span><strong>{analysis.validity.is_eulerian_circuit ? 'Valid' : 'No'}</strong></div>
                   <div className="step-row"><span className="label-tech">Connected</span><strong>{analysis.validity.largest_component_covers_all_nodes ? 'Yes' : 'No'}</strong></div>
                 </div>
+              </div>
+            )}
+
+            {analysisError && (
+              <p className="detect-error" role="alert">
+                Detection succeeded (shown above), but structural analysis failed: {analysisError}
+              </p>
+            )}
+
+            {reconstruction && (
+              <div className="archival-frame result-card">
+                <h2 className="heading-display heading-3">Reconstruction</h2>
+                {reconstruction.reconstruction.note ? (
+                  <p className="body-text body-text--sm">{reconstruction.reconstruction.note}</p>
+                ) : (
+                  <div className="step-table">
+                    <div className="step-row">
+                      <span className="label-tech">Structurally valid</span>
+                      <strong className={reconstruction.reconstruction.is_valid ? 'text-valid' : ''}>
+                        {reconstruction.reconstruction.is_valid ? '✓ Valid' : 'No — see below'}
+                      </strong>
+                    </div>
+                    <div className="step-row"><span className="label-tech">Motif-covered edges</span><strong>{reconstruction.reconstruction.motif_edges}</strong></div>
+                    <div className="step-row"><span className="label-tech">Residual edges</span><strong>{reconstruction.reconstruction.residual_edges}</strong></div>
+                    <div className="step-row"><span className="label-tech">Connected components</span><strong>{reconstruction.reconstruction.connectivity.connected_components}</strong></div>
+                    <div className="step-row"><span className="label-tech">Fully connected</span><strong>{reconstruction.reconstruction.connectivity.largest_component_covers_all_nodes ? 'Yes' : 'No'}</strong></div>
+                  </div>
+                )}
               </div>
             )}
           </div>

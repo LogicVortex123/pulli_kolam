@@ -45,6 +45,7 @@ import tempfile
 import time
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -55,7 +56,33 @@ from engine import motifs, validity  # noqa: E402
 
 app = FastAPI(title="PULLI API", version="0.1.0")
 
+# CORS_ORIGINS: comma-separated list of allowed frontend origins, e.g.
+# "http://localhost:5173,https://pulli.example.com". Deliberately NOT
+# defaulted to "*" -- an explicit origin list is required in any
+# deployment where the API is reachable from a browser. For local
+# development where the variable is unset, the common Vite dev-server
+# origins are allowed so `npm run dev` works without extra setup;
+# production deployments must set CORS_ORIGINS explicitly.
+_DEV_DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "").strip()
+CORS_ORIGINS = [origin.strip() for origin in (_cors_origins_env or _DEV_DEFAULT_ORIGINS).split(",") if origin.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/bmp"}
+
+# Application-level upload cap. This is a minimal safety net, not a
+# substitute for a platform/proxy-level body-size limit in production
+# (see docs/DEPLOYMENT.md section H) -- a single kolam photo is a few
+# MB at most, so 20MB comfortably covers real uploads while bounding
+# worst-case memory use per request.
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 
 def _save_upload_to_temp(image: UploadFile) -> str:
@@ -65,9 +92,11 @@ def _save_upload_to_temp(image: UploadFile) -> str:
     fd, path = tempfile.mkstemp(suffix=suffix)
     try:
         with os.fdopen(fd, "wb") as f:
-            content = image.file.read()
+            content = image.file.read(MAX_UPLOAD_BYTES + 1)
             if not content:
                 raise HTTPException(status_code=400, detail="empty image upload")
+            if len(content) > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=400, detail=f"image exceeds {MAX_UPLOAD_BYTES // (1024 * 1024)}MB upload limit")
             f.write(content)
     except Exception:
         os.unlink(path)

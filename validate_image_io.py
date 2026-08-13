@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import glob
 import json
+import sys
 from collections import Counter
 
 import cv2
@@ -29,9 +30,9 @@ from engine import graph_io, image_io, motifs, validity
 MATCH_TOLERANCE_PX = 6.0
 
 
-def align_and_score(image_stem: str) -> dict:
-    img_path = f"synthetic_photos/{image_stem}.jpg"
-    gt = json.load(open(f"synthetic_photos/{image_stem}.json"))
+def align_and_score(image_stem: str, photo_dir: str = "synthetic_photos") -> dict:
+    img_path = f"{photo_dir}/{image_stem}.jpg"
+    gt = json.load(open(f"{photo_dir}/{image_stem}.json"))
 
     preprocessed = image_io.preprocess(img_path)
     lattice = image_io.detect_lattice(preprocessed)
@@ -150,17 +151,18 @@ def induction_comparison(csv_path: str, kolam_number: int, recovered_graph):
     }
 
 
-def main():
+def main(photo_dir: str = "synthetic_photos"):
     stems = sorted(
         f.split("/")[-1].replace(".jpg", "").replace("\\", "/").split("/")[-1]
-        for f in glob.glob("synthetic_photos/*.jpg")
+        for f in glob.glob(f"{photo_dir}/*.jpg")
     )
+    print(f"=== validating against {photo_dir}/ ({len(stems)} images) ===")
 
     print(f"{'image':>16} {'gt_dots':>8} {'det_dots':>9} {'dot_P':>7} {'dot_R':>7} "
           f"{'edgeP_d':>8} {'edgeR_d':>8} {'edgeP_m':>8} {'edgeR_m':>8}")
     rows = []
     for stem in stems:
-        r = align_and_score(stem)
+        r = align_and_score(stem, photo_dir)
         rows.append(r)
         print(f"{r['stem']:>16} {r['gt_n_dots']:>8} {r['det_n_dots']:>9} "
               f"{r['dot_precision']:>7} {r['dot_recall']:>7} "
@@ -179,24 +181,19 @@ def main():
 
     print()
     print("=== downstream induction: recovered (image) graph vs ground-truth (CSV) graph ===")
-    csv_lookup = {
-        "kolam19_k1": ("kolam_data/Kolam CSV files/Kolam CSV files/kolam19.csv", 1),
-        "kolam19_k2": ("kolam_data/Kolam CSV files/Kolam CSV files/kolam19.csv", 2),
-        "kolam19_k3": ("kolam_data/Kolam CSV files/Kolam CSV files/kolam19.csv", 3),
-        "kolam19_k27": ("kolam_data/Kolam CSV files/Kolam CSV files/kolam19.csv", 27),
-        "kolam19_k50": ("kolam_data/Kolam CSV files/Kolam CSV files/kolam19.csv", 50),
-        "kolam29_k1": ("kolam_data/Kolam CSV files/Kolam CSV files/kolam29.csv", 1),
-        "kolam29_k2": ("kolam_data/Kolam CSV files/Kolam CSV files/kolam29.csv", 2),
-    }
     for stem in stems:
-        csv_path, kolam_number = csv_lookup[stem]
-        recovered_graph = image_io.build_graph(f"synthetic_photos/{stem}.jpg")
+        gt = json.load(open(f"{photo_dir}/{stem}.json"))
+        csv_path, kolam_number = gt["csv_path"], gt["kolam_number"]
+        recovered_graph = image_io.build_graph(f"{photo_dir}/{stem}.jpg")
         ic = induction_comparison(csv_path, kolam_number, recovered_graph)
         print(f"{stem:>16}  gt: valid={ic['gt_valid']} motifs={ic['gt_n_motifs']:>3} "
               f"recall={ic['gt_induction_recall']:.4f}   "
               f"recovered: valid={ic['rec_valid']} motifs={ic['rec_n_motifs']:>3} "
               f"recall={ic['rec_induction_recall']:.4f}")
 
+    return rows
+
 
 if __name__ == "__main__":
-    main()
+    photo_dir = sys.argv[1] if len(sys.argv) > 1 else "synthetic_photos"
+    main(photo_dir)

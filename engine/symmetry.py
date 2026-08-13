@@ -12,10 +12,15 @@ motif instead of counted as separate one-off signatures.
 from __future__ import annotations
 
 from collections import Counter
+from typing import Union
 
-from engine.motifs import Motif, RelEdge, local_window
+import networkx as nx
+
+from engine.kolam_pattern import KolamPattern
+from engine.motifs import Motif, RelEdge, interior_points as _interior_points, local_window
 
 Point = tuple[int, int]
+GraphLike = Union[nx.MultiGraph, KolamPattern]
 
 # The 8 symmetries of the square, acting on integer-coordinate points.
 D4_TRANSFORMS: dict[str, "callable[[Point], Point]"] = {
@@ -83,3 +88,27 @@ def induce_motif_symmetric(
             transform_per_point[c] = t
 
     return motif_canon, count / len(interior), transform_per_point
+
+
+def analyze_symmetry(
+    G: GraphLike,
+    dots: set[Point] | None = None,
+    radius: int = 1,
+) -> tuple[Motif, float, dict[Point, str]]:
+    """Thin, pattern-friendly entry point for induce_motif_symmetric: `G`
+    may be an nx.MultiGraph with `dots` given explicitly (existing
+    behavior), or a KolamPattern, in which case `dots` defaults to
+    pattern.dot_points and the interior-point set is computed
+    automatically at the given `radius`. Returns exactly what
+    induce_motif_symmetric returns -- this adds no new analysis, just a
+    call signature that doesn't require the caller to already know the
+    dots/interior split."""
+    if isinstance(G, KolamPattern):
+        pattern = G
+        G = pattern.graph
+        if dots is None:
+            dots = pattern.dot_points
+    if dots is None:
+        raise TypeError("dots is required when G is a raw MultiGraph, not a KolamPattern")
+    interior = _interior_points(dots, radius=radius)
+    return induce_motif_symmetric(G, interior, dots, radius=radius)

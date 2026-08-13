@@ -9,8 +9,13 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import Union
 
 import networkx as nx
+
+from engine.kolam_pattern import KolamPattern
+
+GraphLike = Union[nx.MultiGraph, KolamPattern]
 
 RelEdge = tuple[tuple[int, int], tuple[int, int]]
 Motif = tuple[RelEdge, ...]
@@ -150,9 +155,9 @@ def _build_candidates(
 
 
 def induce_motif_set(
-    G: nx.MultiGraph,
-    interior: set[Point],
-    dots: set[Point],
+    G: GraphLike,
+    interior: set[Point] | None = None,
+    dots: set[Point] | None = None,
     radius: int = 1,
     max_motifs: int = 10,
     target_edges: set | None = None,
@@ -173,6 +178,12 @@ def induce_motif_set(
     larger radius only gets credit for edges still actually uncovered,
     not edges another tier already explained.
 
+    `G` may be an nx.MultiGraph (existing behavior, `interior`/`dots`
+    required) or a KolamPattern -- passing a KolamPattern auto-derives
+    `dots` from pattern.dot_points and `interior` via interior_points()
+    at the given `radius` if either is omitted, so `induce_motif_set(pattern)`
+    works with no other arguments.
+
     Returns (placements, residual_edges, fully_covered) where
     residual_edges is the set of edges (as frozensets) no selected motif
     explains -- these must be listed explicitly for a lossless encoding,
@@ -184,6 +195,16 @@ def induce_motif_set(
     is the one that optimizes description length (see mdl_gain); it uses
     _build_candidates directly rather than calling this function.
     """
+    if isinstance(G, KolamPattern):
+        pattern = G
+        G = pattern.graph
+        if dots is None:
+            dots = pattern.dot_points
+        if interior is None:
+            interior = interior_points(dots, radius=radius)
+    if interior is None or dots is None:
+        raise TypeError("interior and dots are required when G is a raw MultiGraph, not a KolamPattern")
+
     target = set(target_edges) if target_edges is not None else {frozenset(e) for e in G.edges()}
 
     if not interior:
@@ -255,9 +276,9 @@ def mdl_gain(
 
 
 def induce_motif_set_adaptive(
-    G: nx.MultiGraph,
-    interior_points: set[Point],
-    dots_set: set[Point],
+    G: GraphLike,
+    interior_points: set[Point] | None = None,
+    dots_set: set[Point] | None = None,
     max_radius: int = 3,
     max_motifs_per_radius: int = 500,
 ) -> tuple[list[MotifPlacement], set, bool]:
@@ -286,6 +307,12 @@ def induce_motif_set_adaptive(
     reason as before: paying radius=2/3's finer-grained clustering cost
     only where radius=1 left edges unexplained, not everywhere.
 
+    `G` may be an nx.MultiGraph (existing behavior, `interior_points`/
+    `dots_set` required) or a KolamPattern -- passing a KolamPattern
+    auto-derives `dots_set` from pattern.dot_points and `interior_points`
+    at radius=1 if either is omitted, so `induce_motif_set_adaptive(pattern)`
+    works with no other arguments.
+
     Each returned MotifPlacement has `.radius` set to the tier it was
     selected at. Returns (placements, residual_edges, fully_covered).
     """
@@ -294,6 +321,18 @@ def induce_motif_set_adaptive(
     # Needed because the `interior_points` PARAMETER shadows the
     # module-level `interior_points` FUNCTION for this entire function
     # body -- Python resolves names per-function, not line-by-line.
+
+    if isinstance(G, KolamPattern):
+        pattern = G
+        G = pattern.graph
+        if dots_set is None:
+            dots_set = pattern.dot_points
+        if interior_points is None:
+            interior_points = _self.interior_points(dots_set, radius=1)
+    if interior_points is None or dots_set is None:
+        raise TypeError(
+            "interior_points and dots_set are required when G is a raw MultiGraph, not a KolamPattern"
+        )
 
     remaining = {frozenset(e) for e in G.edges()}
     all_placements: list[MotifPlacement] = []

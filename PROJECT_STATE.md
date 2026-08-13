@@ -1,17 +1,90 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: end of session 13 (M4.1) — COMPLETE. **Result: the learned
-lattice detector is worse than the classical detector on every measured
-axis and does not generalize to real photographs — recommendation is
-NOT to integrate it (see Session 13's Section 13 for the two legitimate
-paths forward).** Do not assume a trained model in this repo means ML
-detection is production-ready; it explicitly is not, per measured
-evidence.
+Last updated: session 15 (M4.1.2 target-resolution check). M4.1
+(session 13) result unchanged: the learned lattice detector is worse
+than the classical detector on every measured axis and does not
+generalize to real photographs — recommendation is NOT to integrate it.
+Session 14 diagnosed WHY (see Section 11's correction, below the
+original Session 13 report, and `diagnostics/M4_1_HEATMAP_DIAGNOSIS.md`):
+a training-target/heatmap-resolution mismatch with this dataset's real
+dot density (180-500+ dots/image). Session 15 quantified that mismatch
+directly (no CNN involved at all — a pure target-representation check,
+see "Session 15" below and
+`experiments/m4_1/diagnostics/TARGET_RESOLUTION_REPORT.md`): the
+current 32×32 architecture's target recovers only 5-28% of true dots as
+distinguishable peaks even in the ideal noise-free case; 128×128 is the
+minimum resolution that recovers 100% across the observed density
+range. Do not assume a trained model in this repo means ML detection is
+production-ready; it explicitly is not, per measured evidence. No
+retraining or production integration has occurred at any point in
+sessions 13-15.
 
 Work from sessions 4-12 lives on branch `feature/generation-pipeline`
 (pushed to origin, not yet merged to `master`) —
 `git log --oneline master..feature/generation-pipeline` to see them, or
 PR compare link: https://github.com/SIH-2026-Celestials/pulli_kolam/pull/new/feature/generation-pipeline
+
+## Session 15 — M4.1.2 Target Resolution Representation Check (COMPLETE)
+
+**Experiment name**: Target-resolution representation check (pure
+representation experiment — no CNN, no checkpoint, no torch, no
+retraining, no dataset expansion). Follows up session 14's finding that
+the training TARGET itself, not the model or peak detector, loses
+individual-dot identity.
+
+**Methodology**: Surveyed all 179 already-generated ground-truth JSON
+files across `experiments/m4_1/data/{train,val,test}/`,
+`synthetic_photos/`, and `synthetic_photos_heldout/` (no new images
+generated) to find the corpus's real dot-density range: 180-500 dots/
+image, with a bimodal gap (kolam19-based: 180-224; kolam29-based:
+444-500; nothing between). Selected 3 representative images spanning
+this range (180, 208, 500 dots). Reimplemented the existing target-
+heatmap construction (`experiments/m4_1/model.py`'s coordinate-scaling
++ Gaussian-blob logic) LOCALLY inside a new diagnostic script
+(`experiments/m4_1/diagnose_target_resolution.py`), generalized to
+resolutions 32×32/64×64/128×128/256×256, sigma held fixed at 1.2 cells
+(the model's actual trained value) throughout to isolate "does
+resolution alone help." Measured objectively: local-maxima count vs.
+true dot count, nearest-neighbor spacing in cell-units relative to
+sigma, and literal cell-collision count.
+
+**Objective findings** (full table:
+`experiments/m4_1/diagnostics/TARGET_RESOLUTION_REPORT.md`):
+- 32×32 (current architecture): recovers only **5-28%** of true dots
+  as distinguishable target peaks (26/500 for the densest pattern, up
+  to 28.2% literally colliding into the same cell) — a hard ceiling in
+  the target itself, independent of any model or training choice.
+- 64×64: improves to 86% recovery for kolam19-density (180-224 dots)
+  but only **29%** for kolam29-density (500 dots) — still insufficient
+  across the full range.
+- 128×128: **100% recovery for every density tested** (180, 208, 500
+  dots) — local-maxima count exactly equals true dot count. The minimum
+  sufficient resolution found.
+- 256×256: also 100% recovery, with a more comfortable separation
+  margin (0% of dots within 3σ of a neighbor, vs. 94.8% still-touching
+  at 128×128 for the densest pattern).
+
+**Conclusion**: The current 32×32 architecture has a measured,
+objective information ceiling that no amount of retraining could
+exceed. 128×128 is the minimum resolution that makes individual-dot
+recovery possible in principle; 256×256 gives more margin at the
+densest observed patterns. This confirms (does not merely repeat)
+session 14's diagnosis with a direct, model-free measurement.
+
+**Recommended next step**: NOT a full retrain. If this direction is
+pursued in a future session: first confirm a finer-output-resolution
+architecture (targeting ≥128×128, e.g. reduced stride and/or larger
+model input) can actually be trained to reproduce a target at that
+resolution before any full retrain — this experiment establishes only
+that the REPRESENTATION could in principle support individual-dot
+recovery, not that a small CNN can learn to predict it. Still
+recommend evaluating this against option 2 in Session 13's Section 13
+(deprioritizing the ML-detection direction) given the scale of change
+implied.
+
+Tests: core `tests/` 123/123 passing (unchanged), `experiments/m4_1/tests`
+16/16 passing (unchanged). Retraining performed: NO. Production
+integration performed: NO.
 
 ## Session 13 — M4.1 Learned Lattice Detection Baseline — RESEARCH REPORT (COMPLETE)
 
@@ -178,10 +251,30 @@ signal, not genuine improvement.**
 - **Underfitting even on synthetic held-out data.** Even on
   `synthetic_tuned`/`synthetic_heldout` (gentle degradation, closest to
   "realistic"), the model badly underperforms classical (recall
-  0.055-0.069 vs. 0.9995-1.0). 108 training images and a 60K-parameter
-  model is very likely simply too little data/capacity for this task —
-  val_loss plateaued by epoch ~9 of 40 and never meaningfully improved,
-  a classic small-data/small-model ceiling, not a training-time bug.
+  0.055-0.069 vs. 0.9995-1.0). val_loss plateaued by epoch ~9 of 40 and
+  never meaningfully improved.
+  **CORRECTED by a follow-up diagnostic (M4.1.1, `diagnose_m4_1_heatmap.py`,
+  full report `diagnostics/M4_1_HEATMAP_DIAGNOSIS.md`)**: the original
+  framing above ("too little data/capacity") is not what the evidence
+  actually shows. Every image in every evaluation set — M4.1's own AND
+  the original classical-baseline sets — has 180-500+ ground-truth
+  dots (verified directly), against only a 32×32=1,024-cell heatmap
+  output. At that density, the training TARGET itself (Gaussian σ=1.2
+  heatmap-cells per dot) already merges into one undifferentiated blob
+  before the model ever sees it (visually confirmed). The model fits
+  that blob almost exactly (heatmap MSE 0.002-0.003 against its own
+  target) — it is not undertrained or too small for its task, it
+  learned its target very well; **the target itself never encoded
+  individual-dot identity at this resolution.** A peak-detector
+  threshold/suppression-radius sweep (25 configurations) confirmed this
+  is not primarily a peak-extraction bug either — best achievable
+  recall anywhere in the sweep is ~0.109, still far below classical, and
+  only at a ~195-peaks-per-image precision collapse. Root cause is a
+  Phase-4 architecture/target-design choice (heatmap resolution too
+  coarse for this dataset's actual, now-measured, dot density), not a
+  data-volume or peak-detection problem. **This does not change the
+  headline recommendation (do not integrate the learned detector) — it
+  replaces the "why" with a more precise, evidenced explanation.**
 - **Two real implementation bugs were found and fixed during Phase 5/6
   testing** (full detail preserved from the in-progress log, condensed
   here): (a) an NMS suppression-radius unit-conversion bug that turned
@@ -233,12 +326,17 @@ so, not to reach for a positive spin.
 
 Two legitimate paths forward, both explicitly conditional on new
 evidence, neither decided here:
-1. **Retry with materially more scale**: a genuinely larger synthetic
-   dataset (the 400-pattern kolam19 collection is barely touched — 18
-   of 400 patterns used for training here), a fixed/gentler
-   `degrade_v2`, and a fair test of whether the small-data/small-model
-   ceiling in Section 11 is the real bottleneck before concluding CNNs
-   can't help at all.
+1. **Retry with materially more scale** — **UPDATED by the M4.1.1
+   diagnostic** (`diagnostics/M4_1_HEATMAP_DIAGNOSIS.md`): more
+   data/epochs alone will NOT fix this, since the diagnostic shows the
+   model already fits its (inadequate) training target almost exactly.
+   Before any full retrain, the smallest justified next step is a
+   cheap, no-retrain check: regenerate a handful of existing images'
+   ground-truth heatmap target at finer resolution (e.g. a 128×128 or
+   64×64 grid with a proportionally smaller Gaussian σ) and verify
+   individual dots actually become distinguishable at this dataset's
+   real density (180-500+ dots/image) BEFORE committing to an
+   architecture change and full retrain.
 2. **Abandon the ML-detection direction for now** and revisit M4's
    original Section 10 boundary decision — the classical detector,
    despite its own real limitations (session 12), was not beaten by

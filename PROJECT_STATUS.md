@@ -1,0 +1,106 @@
+# PROJECT STATUS — PULLI Kolam Design-Principle Engine
+
+**Last Updated:** 2026-08-13 (design-system tokens/utilities fix — secondary pages were unstyled)  
+**Branch:** `feat/frontend-clone-ui`
+
+---
+
+## Overview
+
+PULLI is a computational platform that uses ML, computer vision, and graph theory to understand the structural grammar of traditional Indian kolam patterns and generate valid new ones.
+
+---
+
+## ✅ Completed Milestones
+
+### Backend / Engine
+
+| Milestone | Status | Notes |
+|---|---|---|
+| Kolam dataset ingestion (`kolam19`) | ✅ Complete | 400 geometric traces loaded |
+| Dot detection pipeline | ✅ Complete | Grid-based pulli detection |
+| Stroke tracing algorithm | ✅ Complete | Sub-pixel resolution polyline traces |
+| Graph representation (NetworkX MultiGraph) | ✅ Complete | Nodes + edges with repeated strands |
+| D4 dihedral symmetry analysis | ✅ Complete | 8-fold symmetry group detection |
+| Motif induction (fixed radius) | ✅ Complete | 82.8% structural edge recall |
+| Motif induction (adaptive radius) | ✅ Complete | 99.5% structural edge recall |
+| Eulerian trail validation | ✅ Complete | Single-stroke constraint verified |
+| Automated test suite | ✅ Complete | All tests passing |
+
+### Frontend
+
+| Milestone | Status | Notes |
+|---|---|---|
+| Project scaffold (React + Vite) | ✅ Complete | Vite v8, React 19 |
+| Design system (tokens, global styles) | ✅ Complete | Playfair Display + Inter, maroon/gold palette. Was Home-page-only for a while — Analyze/About/Gallery/How it Works/Generate referenced a shared `.container`/`.section`/`.eyebrow`/`.heading-display`/`.btn*` utility layer and a `--space-*`/`--color-ink`/`--color-line`/etc. token set that had never been defined, so those pages rendered as unstyled HTML. Fixed via `tokens.css` additions + new `utilities.css`. |
+| Navbar component | ✅ Complete | Deep maroon, gold active underline, Login button |
+| Hero section (3-column layout) | ✅ Complete | Heading, center Kolam SVG, AI meets tradition card |
+| Center Kolam SVG illustration | ✅ Complete | Authentic 4-fold symmetric continuous loop art |
+| Feature strip (5 items) | ✅ Complete | Horizontal layout with vertical dividers |
+| Live Analysis Pipeline card | ✅ Complete | 8-step stepper, 5 visual panels, progress bar |
+| Generated Kolam Variations card | ✅ Complete | 4 thumbnails, Generate More button |
+| Design Rule Summary | ✅ Complete | Grid, Symmetry, Stroke, Motif Families, Complexity |
+| Footer component | ✅ Complete | Maroon, copyright, AICTE initiative credit |
+| File upload functionality | ✅ Complete | Triggers analysis pipeline simulation |
+| Generate More interactivity | ✅ Complete | Cycles between two variation sets |
+| About page | ✅ Complete | Routed at `/about` |
+| How it Works page | ✅ Complete | Routed at `/how-it-works` |
+| Generate page | ✅ Complete | Routed at `/generate`; fixes navbar link that previously 404'd blank (no matching route) |
+| 404 / catch-all route | ✅ Complete | Prevents blank page on unmatched routes |
+| Gallery page (kolam archive browser) | ✅ Complete | Search/filter by number, 400-pattern grid, Load More pagination — moved up from "In Progress" below, it was already functionally complete |
+| `npm run build` | ✅ Passing | Zero errors, clean production bundle |
+
+---
+
+## 🔄 In Progress
+
+| Milestone | Status | Notes |
+|---|---|---|
+| Generative reconstruction (pattern generation) | 🔄 In Progress | Foundation laid via motif grammar |
+| Backend API integration with frontend | 🔄 In Progress | REST endpoints planned |
+| Kolam detail view | 🔄 In Progress | Route exists, content pending |
+
+---
+
+## 📋 Planned (Next Steps)
+
+| Milestone | Status | Notes |
+|---|---|---|
+| Live ML inference pipeline (image → rules) | 📋 Planned | Model training in progress |
+| REST API (FastAPI) for analysis endpoint | 📋 Planned | |
+| Real-time websocket progress for analysis steps | 📋 Planned | |
+| Kolam gallery with search and filters | 📋 Planned | |
+| Mobile responsive layouts (tablet + mobile) | 📋 Planned | Desktop-first currently |
+| PWA / offline capability | 📋 Planned | |
+
+---
+
+## Key Technical Metrics
+
+| Metric | Value |
+|---|---|
+| Dataset | `kolam19` — 400 patterns |
+| Dot Lattice | 37 × 37 |
+| Evaluation Sample | 15 patterns |
+| Fixed Radius Edge Recall | 82.8% |
+| Adaptive Radius Edge Recall | 99.5% |
+| Automated Tests Passing | All |
+| Frontend Build | ✅ Clean (Vite 8) |
+| ESLint | ✅ 0 errors, 0 warnings |
+
+---
+
+## UI Reference
+
+The Home page frontend has been implemented as a **pixel-accurate clone** of the reference design:
+
+- **Navbar**: Deep maroon (`#500914`), PULLI brand, nav links with gold active underline, Login
+- **Hero**: 3-column layout — typography + actions | center Kolam SVG | AI meets tradition card
+- **Feature Strip**: 5 feature items with vertical dividers
+- **Analysis Panel**: 8-step live pipeline, 5 visualization stages, 56% building graph progress
+- **Variations Panel**: 4 generated Kolam thumbnails, Design Rule Summary
+- **Footer**: Dark maroon, AICTE credit
+
+---
+
+*This document is auto-updated as milestones are reached.*

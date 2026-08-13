@@ -1,11 +1,108 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: end of the housekeeping + multiplicity-audit session (session 9).
+Last updated: mid session 10 (Items 1-2 done; Item 3 — Task A/B — in progress).
 
-Work from sessions 4-9 lives on branch `feature/generation-pipeline`
-(pushed to origin, 9 commits, not yet merged to `master`) —
+Work from sessions 4-10 lives on branch `feature/generation-pipeline`
+(pushed to origin, not yet merged to `master`) —
 `git log --oneline master..feature/generation-pipeline` to see them, or
 PR compare link: https://github.com/SIH-2026-Celestials/pulli_kolam/pull/new/feature/generation-pipeline
+
+## Session 10 summary (Items 1-2: relabel + port multiplicity fix upstream + re-measure)
+
+**Item 1 (relabel, committed alone first):** every historical "recall"/
+"compression ratio" number tied to `induce_motif_set`/
+`induce_motif_set_adaptive`/MDL-gating was relabeled "distinct-edge" in
+this file. Numbers unchanged by this step — labeling only.
+
+**Item 2 (port the multiplicity fix upstream, then re-measure):**
+Ported the same principle already applied to `reconstruct_kolam`
+(session 9) into `engine/motifs.py` itself: `_stamped_edges`,
+`_build_candidates`, `induce_motif_set`, `mdl_gain`, and
+`induce_motif_set_adaptive` now track coverage via `Counter` (per-edge
+STRAND count), not plain `set`s of distinct pair identity. Uses Python's
+native `Counter.__and__` (min-per-key intersection) and `-`/`-=`
+(positive-only difference) — exact multiplicity semantics with no
+hand-rolled accounting. `compression_ratio`'s `raw_size` also corrected
+from `n_distinct_edges * EDGE_UNIT_COST` to
+`G.number_of_edges() * EDGE_UNIT_COST` (true strand count), matching the
+now-multiplicity-exact residual/motif cost terms on the same basis.
+Backward compatible: both `mdl_gain` and `compression_ratio` still
+accept a plain `set` (treated as 1 strand per entry) for old callers.
+
+**Corrected numbers, same 15 patterns, `validate_mdl.py` (unchanged
+script — the fix alone changes what it reports):**
+
+| metric | OLD (distinct-edge, mislabeled) | NEW (multiplicity-exact) | delta |
+|---|---|---|---|
+| avg recall | 90.3% | **96.41%** | **+6.1 pts** |
+| avg compression ratio | 2.40x | **2.72x** | +0.32 (see caveat below) |
+| avg motifs used | 19.6 | **30.80** | +11.2 (more motifs now needed to actually satisfy full multiplicity, not just touch a pair once) |
+| total wall time, 15 patterns | ~unmeasured precisely before | **129.3s** | kolam109 patterns now ~20-30s each (more candidates evaluated) |
+| patterns beating old radius=1 baseline on recall | mixed | **15/15** | |
+| patterns beating old radial=1 baseline on compression | mixed | **15/15** | |
+
+**Recall's improvement is single-cause and clean**: the distinct-pair
+basis (`n_total`/`len(residual)`) is UNCHANGED in `validate_mdl.py`'s own
+script code — only the CRITERION for "when is a pair removed from
+residual" changed (now requires full multiplicity satisfied, not first
+touch). The +6.1pt improvement is a real, directly-attributable
+consequence of the fix.
+
+**Compression's improvement is NOT single-cause — decomposed and
+reported honestly, not conflated**: `raw_size`'s basis ALSO changed
+(distinct pairs → true raw strand count), independent of the
+residual/motif-selection fix. Measured separately: using the NEW motif
+selection/residual but the OLD (distinct-pair) raw_size basis gives
+**2.16x** (WORSE than the old 2.40x — the residual cost term alone got
+more expensive, correctly, since strand deficits are no longer
+undercounted). Only with the ALSO-corrected raw_size basis (true strand
+count, bigger, since ~20-25% of real edges are double strands per
+DATA_FORMAT.md) does the ratio come out to 2.72x, higher than before.
+**The headline "compression went up" is real for the final, fully-corrected
+formula, but do not describe it as "the induction got more efficient" —
+part of the change is a bigger, more honest denominator AND numerator
+basis, not purely better motif selection.**
+
+**New finding, discovered while verifying the fix, not anticipated —
+accounting fix ≠ physical materialization fix:** `induce_motif_set_adaptive`'s
+own internal Counter-based accounting is now correctly multiplicity-exact,
+but `build_candidate_graph` (which turns `MotifPlacement`s into an
+actual `nx.MultiGraph`) still blindly re-stamps EVERY point in a selected
+placement, with no memory of what the accounting layer capped/credited
+during selection. Verified directly on real kolam19#1 data: accounting
+reports 94.7% recall / 2.13x compression (healthy), but the MATERIALIZED
+graph from `build_candidate_graph(placements, dots)` still has **82
+over-explained pairs, 420 strands produced vs source's 312** (35%
+excess). This is a real, separate gap from what Item 2 asked to fix
+(explicitly scoped to "coverage/recall accounting," which IS fixed) —
+**NOT fixed this session, flagged here, not silently absorbed.**
+`reconstruct_kolam` is UNAFFECTED by this gap (verified: still 6/6
+`self_consistent=True`) because it re-derives its own cap independently
+from `build_candidate_graph`'s real output vs source, regardless of what
+`induce_motif_set_adaptive`'s own bookkeeping claims. `engine.motif_selection.
+induce_motif_set_multiplicity_aware` (M3.6) also remains unaffected — it
+already filters individual points, a stronger guarantee this session's
+fix did not port into `induce_motif_set`/`induce_motif_set_adaptive`
+themselves (that would be a further, more invasive change, out of this
+session's literal scope).
+
+Tests: 104 → 106 (2 new: multiplicity-exact residual tracking via
+`target_edges` override, and a `Counter` return-type contract test).
+2 pre-existing tests updated (comments/assertions reflecting the
+intentional `set`→`Counter` type change on `induce_motif_set_adaptive`'s
+residual — not a regression, a documented contract change). All green.
+
+## Open tasks (session 10, carried forward)
+1. The newly-discovered accounting-vs-materialization gap above is
+   unfixed. If `induce_motif_set`/`induce_motif_set_adaptive`'s
+   placements are ever fed into `build_candidate_graph` WITHOUT going
+   through `reconstruct_kolam`'s own independent capping, the result can
+   still physically over-explain, even though recall/compression
+   self-reporting is now honest.
+2. Item 3 (Task A: real Wikimedia photos, Task B: kolam29 root-cause) —
+   see below, addressed same session per explicit instruction not to
+   defer again.
+3. `feature/generation-pipeline` branch still not merged to master.
 
 ## Session 9 summary (housekeeping + multiplicity-accounting audit + reconstruction fix)
 
@@ -41,24 +138,23 @@ produced while still being reported "covered" (`residual` didn't
 contain it) — the accounting is blind to strand-count mismatch in BOTH
 directions (already consistent with the M3.6 session's real measurement
 of 988 avg over-explained edges via this exact mechanism).
-**Consequence — relabeled this session (session 10, Item 1), re-measurement queued next (Item 2):**
-every "recall"/"compression ratio" number in `validate_mdl.py`/
-`validate_adaptive.py` and reported in this file (90.3% avg recall,
-89.7%, 99.49%, per-pattern figures, 2.40x/1.82x/1.64x compression) is
-**distinct-edge recall / distinct-edge compression ratio** — identity-
-only (does a pair have >=1 strand explained, ignoring true strand
-count), not multiplicity-exact. `compression_ratio`'s own docstring
-already said almost exactly this ("measures CONNECTIVITY compression,
-not exact strand-multiplicity reconstruction") but that caveat had never
-been carried into how "recall" itself gets labeled anywhere it's
-printed — every occurrence tied to `induce_motif_set`/
-`induce_motif_set_adaptive`/MDL-gating in this file has now been
-relabeled with an explicit "distinct-edge" qualifier (see the
-self-correction-discipline list and the results table below). The
-underlying NUMBERS are UNCHANGED by this relabeling — this is a
-labeling fix, not a re-measurement. A multiplicity-aware re-measurement,
-using the upstream fix ported from `reconstruct_kolam`'s over-explanation
-correction, is the next item (Item 2, this same session).
+**Resolved (session 10, Items 1 AND 2 — both done, not just flagged):**
+every historical "recall"/"compression ratio" number tied to
+`induce_motif_set`/`induce_motif_set_adaptive`/MDL-gating (90.3% avg
+recall, 89.7%, 99.49%, 2.40x/1.82x/1.64x compression) was
+**distinct-edge** — identity-only (does a pair have >=1 strand explained,
+ignoring true strand count), not multiplicity-exact.
+`compression_ratio`'s own docstring already said almost exactly this
+("measures CONNECTIVITY compression, not exact strand-multiplicity
+reconstruction") but that caveat had never been carried into how
+"recall" itself gets labeled anywhere it's printed. Item 1 relabeled
+every such occurrence with an explicit "distinct-edge" qualifier; Item 2
+then ported the SAME multiplicity fix already applied to
+`reconstruct_kolam` (session 9) upstream into `induce_motif_set`/
+`induce_motif_set_adaptive`/`mdl_gain`/`compression_ratio` themselves,
+and re-measured. **Real corrected numbers, real delta, both reported
+below** ("Session 10 summary") — not just flagged as an open decision
+anymore.
 
 **Reconstruction fix (`engine/reconstruction.py`, scoped and applied,
 per explicit instruction):** `reconstruct_kolam` previously copied
@@ -83,20 +179,10 @@ only ever caps excess, never removes a real edge. 1 new regression test
 
 Tests: 103 → 104. All green, zero regressions.
 
-## Open tasks (session 9, carried forward)
-1. Relabeling done this session (session 10, Item 1): historical recall/
-   compression numbers now explicitly say "distinct-edge." Re-measurement
-   with a multiplicity-aware metric is Item 2, same session, still to do.
-2. Task A (real Wikimedia photo test) and Task B (kolam29 dense-detection
-   root-cause + fix) are STILL not done — carried forward again, not
-   newly discovered.
-3. `induce_motif_set`/`induce_motif_set_adaptive`'s own coverage
-   accounting (not just `reconstruct_kolam`'s consumption of it) still
-   has the identity-only property described above — only
-   `reconstruct_kolam`'s specific over-explanation symptom was fixed
-   this session, not the upstream root cause in `motifs.py` itself.
-4. `feature/generation-pipeline` branch still not merged to master (9
-   commits now).
+## Open tasks (session 9 list — superseded, see "Open tasks (session 10..." above for current status)
+Items 1 and 3 below were resolved in session 10 (see above); kept here
+only as historical record of what session 9 handed off. Do not treat
+this block as current.
 
 ## Session 8 summary (M3.6 multiplicity-aware selection + M3.7 novel generation + M3 Gate)
 Full M3 program now complete and stopped at the gate, per instructions

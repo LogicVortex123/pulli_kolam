@@ -1,3 +1,5 @@
+from collections import Counter
+
 import networkx as nx
 
 from engine.generation import apply_motif
@@ -239,6 +241,50 @@ def test_induce_motif_set_adaptive_stops_when_max_radius_exhausted():
     assert fully_covered is False
     assert len(placements) == 0
     assert len(residual) == 4  # the 4 stamped edges, all unexplained at radius=1
+
+
+def test_induce_motif_set_residual_is_multiplicity_exact_not_just_identity():
+    # A pair whose TRUE target need is 2 strands, but whose only
+    # available candidate contributes just 1, must be left with a
+    # residual DEFICIT of 1 -- not marked "fully covered" the instant
+    # its identity is touched once. Uses the documented target_edges
+    # override (a Counter) to isolate the accounting fix directly,
+    # without depending on emergent local_window multiplicity-matching
+    # behavior (which is already correct at the single-window level and
+    # was never the bug -- see PROJECT_STATE.md's audit).
+    G = nx.MultiGraph()
+    dots = {(x, y) for x in range(-1, 2) for y in range(-1, 2)}
+    G.add_nodes_from(dots)
+    G.add_edge((-1, 0), (0, 0))
+    G.add_edge((0, 0), (1, 0))  # single strand in G's own local-window shape
+
+    interior = interior_points(dots, radius=1)
+    target_pair = frozenset({(0, 0), (1, 0)})
+    target = Counter(frozenset(e) for e in G.edges())
+    target[target_pair] = 2  # override: true source need for this pair is 2
+
+    placements, residual, fully_covered = induce_motif_set(
+        G, interior, dots, radius=1, max_motifs=10, target_edges=target
+    )
+
+    assert residual.get(target_pair, 0) == 1  # deficit correctly tracked, not zeroed
+    assert fully_covered is False
+
+
+def test_induce_motif_set_adaptive_residual_is_a_counter():
+    # Return-type contract: residual is now a multiplicity-exact Counter,
+    # not a plain set of distinct pairs (session 10 fix, ported from the
+    # same fix already applied to reconstruct_kolam in session 9).
+    nodes = grid_nodes(12)
+    centers = [(0, 0), (3, 0), (6, 0), (9, 0)]
+    motif = (((0, 0), (1, 0)),)
+    G = apply_motif(motif, nodes, centers)
+
+    interior = interior_points(nodes, radius=1)
+    placements, residual, fully_covered = induce_motif_set_adaptive(
+        G, interior & set(centers), nodes, max_radius=1
+    )
+    assert isinstance(residual, Counter)
 
 
 def test_mdl_gain_formula():

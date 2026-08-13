@@ -1,11 +1,106 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: mid session 10 (Items 1-2 done; Item 3 — Task A/B — in progress).
+Last updated: end of session 10 — Items 1, 2, AND 3 (Task A + Task B) all complete.
 
 Work from sessions 4-10 lives on branch `feature/generation-pipeline`
 (pushed to origin, not yet merged to `master`) —
 `git log --oneline master..feature/generation-pipeline` to see them, or
 PR compare link: https://github.com/SIH-2026-Celestials/pulli_kolam/pull/new/feature/generation-pipeline
+
+## Session 10, Item 3 (Task A + Task B — both executed this session, not deferred again)
+
+**Task A — first real (non-synthetic, non-bundled) photograph test,
+ever, in this project's history:** 5 real, licensed photos fetched from
+Wikimedia Commons Category:Kolam, individually verified (author,
+license, EXIF/format evidence) via each file's own Commons page, NOT
+assumed from category listings or search snippets — those proved
+unreliable (the task's own suggested example, "Pongal Kolam.jpg" by
+"Thamizhpparithi Maari," does not match Commons' actual record: real
+author is "Chenthil," description says "Chettinadu Style," not
+Pulli/dot-grid — not used). One candidate that passed the metadata check
+turned out, on VISUAL inspection, to be a synthetic digital dot graphic
+with no drawn strokes at all — excluded from the real-photo set, flagged
+rather than silently used. Files + full license/attribution record:
+`real_photos/` (`MANIFEST.md`).
+
+RAW first-attempt `build_graph()` result, no pre-tuning, on the 4
+confirmed real photographs:
+- 3/4: zero dots detected (no visible dot markers in the source pattern
+  — consistent with the corpus-wide finding from session 4 that many
+  real kolam styles/photos don't use visible pulli).
+- 1/4 (the one photo where dots ARE visually present): **CRASHED** —
+  `numpy.linalg.LinAlgError: Singular matrix`, not just a bad result.
+
+Root-caused (same discipline as every prior session): that photo is
+genuinely low-light/low-contrast (grayscale mean 62.5/255, std 21.6, no
+clean bimodal separation) — Otsu's global threshold misclassified 82.7%
+of the image as "ink," collapsing dot detection to a single spurious
+blob. Every synthetic test photo in this project, however degraded with
+blur/noise/rotation, was always well-lit and high-contrast — genuinely
+poor lighting was never modeled or tested before this real photo.
+**Fixed** (small, scoped, NOT a full binarization overhaul):
+`detect_lattice` now treats fewer than 3 candidate dot pixels as
+degenerate input (a 2D affine fit is underdetermined below that) and
+returns a clean empty result instead of crashing. This makes the
+OUTCOME safe; it does NOT fix the underlying low-contrast binarization
+failure, which remains open (see below). 4 new regression tests.
+
+**Task B — kolam29-scale (dense) dot-detection: diagnosed AND fixed,**
+not just measured again. Visualized detected vs. ground-truth dot
+positions on the documented worst held-out case (kolam29_k50, dot
+recall 0.752): 0 spurious detections, 120/484 real dots missed entirely
+— a pure recall problem, not merging or crossing-point confusion.
+99.2% of the 120 missed dots have their OWN distance-transform value
+below the detector's `threshold_abs` — a genuine intensity-gate
+rejection (min_distance suppression was checked and ruled out: the
+minimum true nearest-neighbor spacing, 17.6px, is well above
+min_distance=11px). **Root cause**: `threshold_abs = 0.75 * R` where
+`R = dist.max()` is the GLOBAL max distance-transform value anywhere in
+the image — effectively the size of the single largest/least-degraded
+dot. Dense patterns render dots smaller in absolute pixels than sparse
+ones, so the same absolute blur/JPEG degradation eats a proportionally
+bigger bite, pushing many real dots below a threshold anchored to the
+single largest dot in the image.
+
+**Fixed**: `THRESHOLD_ABS_FRAC` lowered from 0.75 to 0.65 (new named
+constant in `engine/image_io.py`, was an inline literal). Verified
+across ALL 15 synthetic-photo images (7 tuned + 8 held-out), not just
+the worst case: every kolam19 (sparse) pattern UNCHANGED; every kolam29
+(dense) pattern dramatically improved (kolam29_k50: 75.2%→99.6%,
+kolam29_k20: 88.9%→100%, kolam29_k80: 88.7%→99.8%, kolam29_k1/k2 tuned:
+94.3%/92.0%→100%/100%), at most a 0.2pt precision cost on one pattern
+for +11pt recall. **Full official `validate_image_io.py` re-run, both
+batches:**
+
+| | avg dot recall (before → after) | avg dot precision |
+|---|---|---|
+| tuned set | 0.9803 → **1.0000** | 0.9997 (unchanged) |
+| held-out set | 0.9413 → **0.9995** | 0.9997 (unchanged) |
+
+The "kolam29-scale detection is the actual weak point" finding from
+sessions 4/8 is now resolved, not just re-confirmed. 2 new regression
+tests (kolam29_k50 must stay >0.99 recall; kolam19 sparse guard rail).
+
+Tests: 110 → 112 (Task A) → included above. Combined with Items 1-2:
+**106 → 112 total this session.** All green, zero regressions anywhere.
+
+## Still open after session 10
+1. Low-contrast/low-light binarization (Task A's root cause) is
+   diagnosed but NOT fixed — Otsu's global threshold has no way to
+   handle a genuinely dark, low-contrast photo. A real fix would need
+   adaptive/local thresholding (e.g. `cv2.adaptiveThreshold`) or a
+   contrast-normalization preprocessing step — not attempted this
+   session, scoped out as a separate, larger effort.
+2. Every real photo tested (all 5, all styles) either has no visible
+   dots or is the one low-contrast case — genuinely challenging, diverse
+   real-world conditions have now been sampled, but the sample is still
+   small (5 images, 1 usable for dot-lattice testing at all). More real
+   photos, especially well-lit ones WITH visible dots, would meaningfully
+   extend this.
+3. The accounting-vs-materialization gap from Items 1-2 (build_candidate_graph
+   can still physically over-explain from induce_motif_set_adaptive's
+   placements) remains unfixed, as explicitly scoped.
+4. `feature/generation-pipeline` branch still not merged to master.
 
 ## Session 10 summary (Items 1-2: relabel + port multiplicity fix upstream + re-measure)
 
@@ -92,17 +187,7 @@ Tests: 104 → 106 (2 new: multiplicity-exact residual tracking via
 intentional `set`→`Counter` type change on `induce_motif_set_adaptive`'s
 residual — not a regression, a documented contract change). All green.
 
-## Open tasks (session 10, carried forward)
-1. The newly-discovered accounting-vs-materialization gap above is
-   unfixed. If `induce_motif_set`/`induce_motif_set_adaptive`'s
-   placements are ever fed into `build_candidate_graph` WITHOUT going
-   through `reconstruct_kolam`'s own independent capping, the result can
-   still physically over-explain, even though recall/compression
-   self-reporting is now honest.
-2. Item 3 (Task A: real Wikimedia photos, Task B: kolam29 root-cause) —
-   see below, addressed same session per explicit instruction not to
-   defer again.
-3. `feature/generation-pipeline` branch still not merged to master.
+## (Open-tasks list for this point in session 10 superseded — see "Still open after session 10" at the top of this file, written after Item 3/Task A/Task B were also completed the same session.)
 
 ## Session 9 summary (housekeeping + multiplicity-accounting audit + reconstruction fix)
 

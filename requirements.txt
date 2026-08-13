@@ -6,3 +6,17 @@ scipy
 scikit-image
 opencv-python
 pytest
+
+# Used only by experiments/m4_1/ and experiments/m4_2/ (learned
+# lattice-detection experiments) -- NOT a dependency of engine/, which
+# remains pure numpy/scipy/opencv/networkx. Already present in this
+# project's development environment prior to M4.1; declared here for
+# reproducibility, not newly introduced for convenience.
+torch
+
+# Used only by api/ (M4.2 REST service) -- NOT a dependency of engine/.
+# Already present in this project's development environment prior to
+# M4.2; declared here for reproducibility.
+fastapi
+uvicorn
+python-multipart

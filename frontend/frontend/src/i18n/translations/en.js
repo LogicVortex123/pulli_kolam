@@ -7,6 +7,7 @@ const en = {
     gallery: 'Gallery',
     about: 'About',
     howItWorks: 'How it Works',
+    detect: 'Detect',
   },
   hero: {
     line1: 'Understand the pattern.',

@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 
 
-def _extract_dot_sequence(x: np.ndarray, y: np.ndarray) -> list[tuple[int, int]]:
+def extract_dot_sequence(x: np.ndarray, y: np.ndarray) -> list[tuple[int, int]]:
     is_int = (x == np.round(x)) & (y == np.round(y))
     visited = [(int(x[i]), int(y[i])) for i in range(len(x)) if is_int[i]]
     if not visited:
@@ -65,7 +65,7 @@ def load_kolam(csv_path: str, kolam_number: int) -> nx.MultiGraph:
     df = pd.read_csv(csv_path)
     x = df[f"x-kolam {kolam_number}"].dropna().astype(float).values
     y = df[f"y-kolam {kolam_number}"].dropna().astype(float).values
-    seq = _extract_dot_sequence(x, y)
+    seq = extract_dot_sequence(x, y)
     return dot_sequence_to_multigraph(seq)
 
 

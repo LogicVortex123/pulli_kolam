@@ -9,8 +9,13 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import Union
 
 import networkx as nx
+
+from engine.kolam_pattern import KolamPattern
+
+GraphLike = Union[nx.MultiGraph, KolamPattern]
 
 RelEdge = tuple[tuple[int, int], tuple[int, int]]
 Motif = tuple[RelEdge, ...]
@@ -102,15 +107,26 @@ class MotifPlacement:
     radius: int | None = None  # which window radius this motif was found at (see induce_motif_set_adaptive)
 
 
-def _stamped_edges(motif: Motif, points: list[Point], transforms: dict[Point, str], dots: set[Point]) -> set:
-    """Edge set (deduped) produced by stamping `motif` at every point in
-    `points`, applying each point's D4 transform. Edges landing outside
-    `dots` are dropped, exactly as engine.generation.apply_motif does --
-    inlined here (rather than imported) to avoid a circular import, since
-    engine.generation imports engine.motifs."""
+def _stamped_edges(motif: Motif, points: list[Point], transforms: dict[Point, str], dots: set[Point]) -> Counter:
+    """Per-edge STRAND COUNT (Counter, not a deduping set) produced by
+    stamping `motif` at every point in `points`, applying each point's D4
+    transform. Edges landing outside `dots` are dropped, exactly as
+    engine.generation.apply_motif does -- inlined here (rather than
+    imported) to avoid a circular import, since engine.generation imports
+    engine.motifs.
+
+    MULTIPLICITY-AWARE (fixed this session, see PROJECT_STATE.md's
+    multiplicity-accounting audit): previously returned a plain `set`,
+    which silently collapsed a motif with a repeated relative edge (or
+    two different points' stamps landing on the same physical pair) down
+    to "this pair is covered," with no record of how many strands were
+    actually produced. That set-based coverage is the exact root cause
+    identified for reconstruct_kolam's over-explanation bug, fixed
+    upstream here for induce_motif_set/induce_motif_set_adaptive too,
+    which consume this function's output directly."""
     from engine.symmetry import apply_transform  # local import: symmetry imports motifs
 
-    edges = set()
+    edges: Counter = Counter()
     for cx, cy in points:
         t_name = transforms.get((cx, cy), "identity")
         rel_edges = motif if t_name == "identity" else apply_transform(t_name, motif)
@@ -118,18 +134,19 @@ def _stamped_edges(motif: Motif, points: list[Point], transforms: dict[Point, st
             a = (cx + dx1, cy + dy1)
             b = (cx + dx2, cy + dy2)
             if a in dots and b in dots:
-                edges.add(frozenset({a, b}))
+                edges[frozenset({a, b})] += 1
     return edges
 
 
 def _build_candidates(
     G: nx.MultiGraph, interior: set[Point], dots: set[Point], radius: int
-) -> dict[Motif, tuple[list[Point], dict[Point, str], set]]:
+) -> dict[Motif, tuple[list[Point], dict[Point, str], Counter]]:
     """Shared candidate-generation step used by both induce_motif_set and
     induce_motif_set_adaptive: D4-canonicalized local-window clustering
     (grouped by interior point, exactly as in symmetry.induce_motif_symmetric),
-    each candidate's transform-per-point and full stamped edge set
-    precomputed once (they don't change as a caller's `remaining` shrinks)."""
+    each candidate's transform-per-point and full stamped edge STRAND
+    COUNT (Counter, see _stamped_edges) precomputed once (they don't
+    change as a caller's `remaining` shrinks)."""
     from engine.symmetry import canonical_motif, find_transform  # local import, see _stamped_edges
 
     windows = {c: local_window(G, c, dots, radius) for c in interior}
@@ -141,7 +158,7 @@ def _build_candidates(
             continue
         groups.setdefault(cm, []).append(c)
 
-    candidates: dict[Motif, tuple[list[Point], dict[Point, str], set]] = {}
+    candidates: dict[Motif, tuple[list[Point], dict[Point, str], Counter]] = {}
     for cm, pts in groups.items():
         transforms = {p: find_transform(cm, windows[p]) for p in pts}
         edges = _stamped_edges(cm, pts, transforms, dots)
@@ -150,58 +167,92 @@ def _build_candidates(
 
 
 def induce_motif_set(
-    G: nx.MultiGraph,
-    interior: set[Point],
-    dots: set[Point],
+    G: GraphLike,
+    interior: set[Point] | None = None,
+    dots: set[Point] | None = None,
     radius: int = 1,
     max_motifs: int = 10,
-    target_edges: set | None = None,
-) -> tuple[list[MotifPlacement], set, bool]:
+    target_edges: "Counter | set | None" = None,
+) -> tuple[list[MotifPlacement], Counter, bool]:
     """Generalizes induce_motif to a SET of D4-symmetry-matched motifs,
     chosen by greedy set cover over the graph's edges.
 
     Candidate motifs are the window-signature clusters computed exactly as
     in symmetry.induce_motif_symmetric (D4-canonicalized local windows,
     grouped by interior point). At each step, the candidate whose stamped
-    edge set covers the most currently-uncovered real edges is selected;
-    its edges are marked covered; repeat until every edge of G is covered
-    or `max_motifs` motifs have been selected, whichever comes first.
+    edges cover the most currently-needed STRANDS (not distinct pairs --
+    see MULTIPLICITY-EXACT note below) is selected; those strands are
+    marked covered; repeat until every strand of G is covered or
+    `max_motifs` motifs have been selected, whichever comes first.
 
     `target_edges` overrides what counts as "needs covering": defaults to
-    every distinct edge of G, but induce_motif_set_adaptive passes just
-    the residual from a previous (smaller-radius) pass, so a retry at a
-    larger radius only gets credit for edges still actually uncovered,
-    not edges another tier already explained.
+    every edge of G with its TRUE per-pair strand count, but
+    induce_motif_set_adaptive passes just the residual Counter from a
+    previous (smaller-radius) pass, so a retry at a larger radius only
+    gets credit for strands still actually uncovered, not edges another
+    tier already explained. Accepts a plain `set` too (treated as 1
+    strand needed per entry) for backward compatibility with callers
+    that pre-date this fix.
+
+    `G` may be an nx.MultiGraph (existing behavior, `interior`/`dots`
+    required) or a KolamPattern -- passing a KolamPattern auto-derives
+    `dots` from pattern.dot_points and `interior` via interior_points()
+    at the given `radius` if either is omitted, so `induce_motif_set(pattern)`
+    works with no other arguments.
 
     Returns (placements, residual_edges, fully_covered) where
-    residual_edges is the set of edges (as frozensets) no selected motif
-    explains -- these must be listed explicitly for a lossless encoding,
-    see compression_ratio.
+    residual_edges is a Counter of {edge: n_strands_still_missing} for
+    every edge no selected motif fully explains -- these must be listed
+    explicitly for a lossless encoding, see compression_ratio.
 
-    NOTE: this function maximizes COVERAGE (most new edges per pick), not
-    description length -- it's kept as-is (and still tested/used this
-    way) for straightforward fixed-radius induction. induce_motif_set_adaptive
-    is the one that optimizes description length (see mdl_gain); it uses
-    _build_candidates directly rather than calling this function.
+    MULTIPLICITY-EXACT (fixed this session -- see PROJECT_STATE.md's
+    multiplicity-accounting audit): previously tracked coverage via plain
+    `set`s of distinct edge identity, so a pair was marked "covered" the
+    instant ANY placement touched it once, regardless of whether the
+    source pair actually needed 1 strand or several. This is the exact
+    root cause already fixed for reconstruct_kolam's over-explanation
+    bug (session 9); this fix ports the same principle upstream, to the
+    induction/coverage-accounting layer itself. Uses Counter's `&`
+    (min-per-key intersection) and `-`/`-=` (positive-only difference)
+    operators, which give exactly the needed multiplicity-capped
+    semantics with no hand-rolled accounting logic.
+
+    NOTE: this function maximizes COVERAGE (most new STRANDS per pick),
+    not description length -- it's kept as-is (and still tested/used
+    this way) for straightforward fixed-radius induction.
+    induce_motif_set_adaptive is the one that optimizes description
+    length (see mdl_gain); it uses _build_candidates directly rather than
+    calling this function.
     """
-    target = set(target_edges) if target_edges is not None else {frozenset(e) for e in G.edges()}
+    if isinstance(G, KolamPattern):
+        pattern = G
+        G = pattern.graph
+        if dots is None:
+            dots = pattern.dot_points
+        if interior is None:
+            interior = interior_points(dots, radius=radius)
+    if interior is None or dots is None:
+        raise TypeError("interior and dots are required when G is a raw MultiGraph, not a KolamPattern")
+
+    target = Counter(target_edges) if target_edges is not None else Counter(frozenset(e) for e in G.edges())
 
     if not interior:
         return [], target, len(target) == 0
 
     candidates = _build_candidates(G, interior, dots, radius)
 
-    remaining = set(target)
+    remaining = Counter(target)
     selected: list[MotifPlacement] = []
 
     while remaining and candidates and len(selected) < max_motifs:
         best_cm, best_gain, best_new = None, -1, None
         for cm, (pts, transforms, edges) in candidates.items():
-            gain_set = edges & remaining
-            if len(gain_set) > best_gain:
-                best_cm, best_gain, best_new = cm, len(gain_set), gain_set
+            gain_counter = edges & remaining
+            gain = sum(gain_counter.values())
+            if gain > best_gain:
+                best_cm, best_gain, best_new = cm, gain, gain_counter
         if best_gain <= 0:
-            break  # no remaining candidate explains any uncovered edge
+            break  # no remaining candidate explains any uncovered strand
         pts, transforms, _ = candidates.pop(best_cm)
         selected.append(MotifPlacement(motif=best_cm, points=pts, transforms=transforms, new_edges=best_new))
         remaining -= best_new
@@ -224,7 +275,7 @@ def _points_near(points: set[Point], radius: int, universe: set[Point]) -> set[P
 def mdl_gain(
     candidate_motif: Motif,
     new_placements: list[Point],
-    newly_covered_edges: set,
+    newly_covered_edges: "Counter | set",
     is_new_motif_type: bool,
 ) -> int:
     """Net change in total description length (same field-count units as
@@ -233,8 +284,9 @@ def mdl_gain(
     Positive = the encoding gets SHORTER; this is the only quantity
     induce_motif_set_adaptive uses to decide whether to add a motif.
 
-      benefit: each newly-covered edge no longer needs to be listed as an
-        explicit residual edge (EDGE_UNIT_COST each).
+      benefit: each newly-covered STRAND no longer needs to be listed as
+        an explicit residual strand (EDGE_UNIT_COST each) -- see
+        MULTIPLICITY-EXACT note below.
       cost: the motif RULE itself -- but only if this is the first time
         this exact D4-canonical rule is being introduced
         (len(candidate_motif) * EDGE_UNIT_COST, same convention as
@@ -247,20 +299,31 @@ def mdl_gain(
     < 0 for any 1-edge, 1-placement, new-type candidate) -- a rule stated
     once is never cheaper than just writing down the raw edge, which is
     exactly the "not a real repeating rule" case this gate should reject.
+
+    MULTIPLICITY-EXACT (fixed this session): `newly_covered_edges` is now
+    expected to be a Counter (from induce_motif_set_adaptive's `edges &
+    remaining`, see that function) so `benefit` counts total STRANDS
+    credited, not distinct pairs -- a pair needing 2 strands and getting
+    both counts twice, not once. A plain `set` is still accepted (each
+    entry treated as 1 strand) for backward compatibility with callers
+    that pre-date this fix, e.g. hand-constructed test fixtures.
     """
-    benefit = EDGE_UNIT_COST * len(newly_covered_edges)
+    if isinstance(newly_covered_edges, Counter):
+        benefit = EDGE_UNIT_COST * sum(newly_covered_edges.values())
+    else:
+        benefit = EDGE_UNIT_COST * len(newly_covered_edges)
     motif_rule_cost = len(candidate_motif) * EDGE_UNIT_COST if is_new_motif_type else 0
     placement_cost = PLACEMENT_COST * len(new_placements)
     return benefit - motif_rule_cost - placement_cost
 
 
 def induce_motif_set_adaptive(
-    G: nx.MultiGraph,
-    interior_points: set[Point],
-    dots_set: set[Point],
+    G: GraphLike,
+    interior_points: set[Point] | None = None,
+    dots_set: set[Point] | None = None,
     max_radius: int = 3,
     max_motifs_per_radius: int = 500,
-) -> tuple[list[MotifPlacement], set, bool]:
+) -> tuple[list[MotifPlacement], Counter, bool]:
     """Resolve the radius=1-vs-radius=2 tradeoff by making window radius
     ADAPTIVE PER REGION instead of a single global choice (see PULLI
     session notes: radius=1 alone plateaus around 85-93% recall on real
@@ -274,7 +337,7 @@ def induce_motif_set_adaptive(
     the single best, and adds it ONLY if that gain is positive. It stops
     -- for good, not just for the current tier -- the moment no remaining
     candidate at any tried radius would shorten the encoding. Escalating
-    to a larger radius is itself gated on there being uncovered edges
+    to a larger radius is itself gated on there being uncovered strands
     left AND max_radius allowing it; it is not a fallback for "still not
     enough motifs," because motif COUNT is no longer a target at all.
     `max_motifs_per_radius` is kept only as a hard safety ceiling on total
@@ -286,8 +349,26 @@ def induce_motif_set_adaptive(
     reason as before: paying radius=2/3's finer-grained clustering cost
     only where radius=1 left edges unexplained, not everywhere.
 
+    `G` may be an nx.MultiGraph (existing behavior, `interior_points`/
+    `dots_set` required) or a KolamPattern -- passing a KolamPattern
+    auto-derives `dots_set` from pattern.dot_points and `interior_points`
+    at radius=1 if either is omitted, so `induce_motif_set_adaptive(pattern)`
+    works with no other arguments.
+
+    MULTIPLICITY-EXACT (fixed this session, ported from the same fix
+    already applied to reconstruct_kolam -- see PROJECT_STATE.md's
+    multiplicity-accounting audit): `remaining`/the returned residual are
+    now a Counter of {edge: n_strands_still_needed}, not a plain set of
+    distinct pairs. A source pair needing 2 strands is only considered
+    "covered" once 2 strands' worth of selected-motif contribution have
+    actually been credited to it -- not the instant any single placement
+    touches it once. Uses Counter's `&` (min-per-key intersection) and
+    `-=` (positive-only difference) for this, giving exact multiplicity
+    semantics with no hand-rolled counting logic.
+
     Each returned MotifPlacement has `.radius` set to the tier it was
-    selected at. Returns (placements, residual_edges, fully_covered).
+    selected at. Returns (placements, residual_edges, fully_covered)
+    where residual_edges is now a Counter, not a set.
     """
     import engine.motifs as _self  # self-import: safe, the module is
     # already fully initialized by the time this function is called.
@@ -295,14 +376,26 @@ def induce_motif_set_adaptive(
     # module-level `interior_points` FUNCTION for this entire function
     # body -- Python resolves names per-function, not line-by-line.
 
-    remaining = {frozenset(e) for e in G.edges()}
+    if isinstance(G, KolamPattern):
+        pattern = G
+        G = pattern.graph
+        if dots_set is None:
+            dots_set = pattern.dot_points
+        if interior_points is None:
+            interior_points = _self.interior_points(dots_set, radius=1)
+    if interior_points is None or dots_set is None:
+        raise TypeError(
+            "interior_points and dots_set are required when G is a raw MultiGraph, not a KolamPattern"
+        )
+
+    remaining: Counter = Counter(frozenset(e) for e in G.edges())
     all_placements: list[MotifPlacement] = []
     used_motif_types: set[Motif] = set()
 
     # cm -> (points, transforms, edges, radius_found_at); accumulates
     # across radius tiers as they're introduced, never rebuilt from
     # scratch, so gain evaluation always spans every tried radius at once.
-    candidates: dict[Motif, tuple[list[Point], dict[Point, str], set, int]] = {}
+    candidates: dict[Motif, tuple[list[Point], dict[Point, str], Counter, int]] = {}
     for cm, (pts, transforms, edges) in _self._build_candidates(G, interior_points, dots_set, 1).items():
         candidates[cm] = (pts, transforms, edges, 1)
 
@@ -311,10 +404,10 @@ def induce_motif_set_adaptive(
     while remaining:
         best_cm, best_gain, best_new = None, 0, None
         for cm, (pts, transforms, edges, _r) in candidates.items():
-            gain_set = edges & remaining
-            g = mdl_gain(cm, pts, gain_set, cm not in used_motif_types)
+            gain_counter = edges & remaining
+            g = mdl_gain(cm, pts, gain_counter, cm not in used_motif_types)
             if g > best_gain:
-                best_cm, best_gain, best_new = cm, g, gain_set
+                best_cm, best_gain, best_new = cm, g, gain_counter
 
         if best_cm is not None:
             pts, transforms, _edges, r = candidates.pop(best_cm)
@@ -367,29 +460,39 @@ def description_size(placements: list[MotifPlacement], n_residual_edges: int) ->
 
 
 def compression_ratio(
-    G: nx.MultiGraph, placements: list[MotifPlacement], residual_edges: set
+    G: nx.MultiGraph, placements: list[MotifPlacement], residual_edges: "Counter | set"
 ) -> float:
     """Raw encoding size of the full pattern divided by the honest
-    description size: motif rules + placements + explicit residual edges.
-    Superseded from the old (naive) version, which only divided by a
-    single motif's own edge count and silently assumed 100% coverage with
-    free placement -- that inflated every compression number computed
-    against real data, where a single motif typically covers well under
-    half the pattern (see PULLI session notes).
+    description size: motif rules + placements + explicit residual
+    strands. Superseded from the old (naive) version, which only divided
+    by a single motif's own edge count and silently assumed 100%
+    coverage with free placement -- that inflated every compression
+    number computed against real data, where a single motif typically
+    covers well under half the pattern (see PULLI session notes).
 
-    NOTE on multiplicity: `placements`/`residual_edges` (from
-    induce_motif_set) identify edges by DISTINCT (a, b) connectivity, not
-    exact parallel-strand count -- covering an edge once counts as fully
-    explained even if the original has a double strand there. So raw_size
-    is computed on that same distinct-edge basis (not G.number_of_edges(),
-    which counts each parallel strand separately) to keep numerator and
-    denominator on one accounting basis. This ratio therefore measures
-    CONNECTIVITY compression, not exact strand-multiplicity reconstruction
-    -- that stronger property is what validity.check_self_consistency
-    checks instead, and is reported separately."""
-    n_distinct_edges = len({frozenset(e) for e in G.edges()})
-    raw_size = n_distinct_edges * EDGE_UNIT_COST
-    size = description_size(placements, len(residual_edges))
+    MULTIPLICITY-EXACT (fixed this session -- see PROJECT_STATE.md's
+    multiplicity-accounting audit): previously `placements`/
+    `residual_edges` identified edges by DISTINCT (a, b) connectivity
+    only, not exact parallel-strand count -- covering an edge once
+    counted as fully explained even if the original has a double strand
+    there, and `raw_size` was computed on that same distinct-edge basis
+    (not G.number_of_edges()) purely to keep numerator/denominator
+    consistent with that limitation. Both sides are now TRUE STRAND
+    COUNTS: raw_size = G.number_of_edges() * EDGE_UNIT_COST (every
+    parallel strand counted, not collapsed), and residual cost sums
+    `residual_edges.values()` when given a Counter (as
+    induce_motif_set/induce_motif_set_adaptive now return) -- a pair
+    still missing 2 strands costs 2x EDGE_UNIT_COST to list explicitly,
+    not 1x. A plain `set` is still accepted (each entry = 1 strand) for
+    backward compatibility. This ratio now measures the SAME property
+    validity.check_self_consistency checks as pass/fail -- exact
+    strand-multiplicity reconstruction -- not just connectivity."""
+    raw_size = G.number_of_edges() * EDGE_UNIT_COST
+    if isinstance(residual_edges, Counter):
+        n_residual = sum(residual_edges.values())
+    else:
+        n_residual = len(residual_edges)
+    size = description_size(placements, n_residual)
     if size == 0:
         return float("inf") if raw_size == 0 else 0.0
     return raw_size / size

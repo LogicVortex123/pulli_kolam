@@ -19,6 +19,7 @@ PULLI is a computational platform that uses ML, computer vision, and graph theor
 |---|---|---|
 | Kolam dataset ingestion (`kolam19`) | ✅ Complete | 400 geometric traces loaded |
 | Dot detection pipeline | ✅ Complete | Grid-based pulli detection |
+| ML Dot Lattice Detector (`experiments/m4_2`) | ✅ Complete | PyTorch lattice detection model with 99.9% recall and 99.9% precision |
 | Stroke tracing algorithm | ✅ Complete | Sub-pixel resolution polyline traces |
 | Graph representation (NetworkX MultiGraph) | ✅ Complete | Nodes + edges with repeated strands |
 | D4 dihedral symmetry analysis | ✅ Complete | 8-fold symmetry group detection |
@@ -84,6 +85,9 @@ PULLI is a computational platform that uses ML, computer vision, and graph theor
 | Evaluation Sample | 15 patterns |
 | Fixed Radius Edge Recall | 82.8% |
 | Adaptive Radius Edge Recall | 99.5% |
+| ML Dot Recall | 99.78% (test set) |
+| ML Dot Precision | 99.85% (test set) |
+| ML Dot F1 Score | 99.81% (test set) |
 | Automated Tests Passing | All |
 | Frontend Build | ✅ Clean (Vite 8) |
 | ESLint | ✅ 0 errors, 0 warnings |

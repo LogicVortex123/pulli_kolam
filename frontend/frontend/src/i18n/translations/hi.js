@@ -7,6 +7,7 @@ const hi = {
     gallery: 'गैलरी',
     about: 'परिचय',
     howItWorks: 'यह कैसे काम करता है',
+    detect: 'पहचानें',
   },
   hero: {
     line1: 'पैटर्न को समझें।',

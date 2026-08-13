@@ -4,6 +4,28 @@
 # Markdown / notes (kept locally, not pushed)
 *.md
 !/README.md
+# Project findings/state docs are institutional memory, not scratch
+# notes -- they must be tracked so they survive across sessions/clones.
+!/PROJECT_STATE.md
+!/docs/DATA_FORMAT.md
+!/docs/GENERATION.md
+!/docs/RECONSTRUCTION.md
+!/docs/MOTIF_SELECTION.md
+!/docs/NOVEL_GENERATION.md
+# License/attribution record for third-party-licensed real photos --
+# must travel with the images it documents, not be silently dropped.
+!/real_photos/MANIFEST.md
+# M4.1 diagnostic findings referenced directly from PROJECT_STATE.md --
+# institutional memory, not scratch notes.
+!/diagnostics/M4_1_HEATMAP_DIAGNOSIS.md
+!/experiments/m4_1/diagnostics/TARGET_RESOLUTION_REPORT.md
+# M4.2 plan + API/model/evaluation docs, referenced directly from
+# PROJECT_STATE.md and api/main.py's own docstring -- institutional
+# memory.
+!/docs/M4_2_IMPLEMENTATION_PLAN.md
+!/docs/M4_2_API.md
+!/docs/M4_2_MODEL.md
+!/docs/M4_2_EVALUATION.md
 
 # Python
 __pycache__/

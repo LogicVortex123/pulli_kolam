@@ -112,6 +112,61 @@ def test_trace_path_edge_set_matches_ground_truth_within_tolerance(stem):
     assert precision > 0.95
 
 
+def _blob_binary(centers, size=400, radius=8):
+    """A minimal synthetic binary ink mask with round dot-like blobs at
+    `centers` -- for testing detect_lattice's degenerate-input handling
+    without depending on an external real photo file."""
+    binary = np.zeros((size, size), dtype=np.uint8)
+    yy, xx = np.mgrid[0:size, 0:size]
+    for cx, cy in centers:
+        mask = (xx - cx) ** 2 + (yy - cy) ** 2 <= radius**2
+        binary[mask] = 255
+    return binary
+
+
+def test_detect_lattice_handles_zero_candidate_dots_without_crashing():
+    preprocessed = image_io.Preprocessed(binary=np.zeros((400, 400), dtype=np.uint8), rotation_deg=0.0)
+    lattice = image_io.detect_lattice(preprocessed)
+    assert lattice.lattice_coords == []
+    assert lattice.pixel_positions == []
+
+
+def test_detect_lattice_handles_one_candidate_dot_without_crashing():
+    # Regression test: found on a real (non-synthetic) low-light Wikimedia
+    # Commons photo, session 10 -- Otsu's global threshold misclassified
+    # most of the dark, low-contrast image as "ink," producing a single
+    # spurious dot-like blob. _fit_lattice_coords' affine fit needs >=3
+    # points and previously raised numpy.linalg.LinAlgError: Singular
+    # matrix on exactly this input. Must now return a clean degenerate
+    # result instead of crashing.
+    binary = _blob_binary([(200, 200)])
+    preprocessed = image_io.Preprocessed(binary=binary, rotation_deg=0.0)
+    lattice = image_io.detect_lattice(preprocessed)  # must not raise
+    assert lattice.lattice_coords == []
+    assert len(lattice.pixel_positions) == 1
+
+
+def test_detect_lattice_handles_two_candidate_dots_without_crashing():
+    # Same underlying degeneracy as the one-dot case (still < 3 points,
+    # an affine fit is still underdetermined) -- must not crash either.
+    binary = _blob_binary([(100, 100), (300, 300)])
+    preprocessed = image_io.Preprocessed(binary=binary, rotation_deg=0.0)
+    lattice = image_io.detect_lattice(preprocessed)  # must not raise
+    assert lattice.lattice_coords == []
+    assert len(lattice.pixel_positions) == 2
+
+
+def test_detect_lattice_still_fits_a_real_lattice_with_enough_dots():
+    # Guard rail: the >=3-point degenerate-input fix must not accidentally
+    # break the normal case. 5 dots on a clean grid -> a real lattice fit.
+    centers = [(100, 100), (150, 100), (200, 100), (100, 150), (100, 200)]
+    binary = _blob_binary(centers, size=400, radius=8)
+    preprocessed = image_io.Preprocessed(binary=binary, rotation_deg=0.0)
+    lattice = image_io.detect_lattice(preprocessed)
+    assert len(lattice.lattice_coords) == 5
+    assert len(set(lattice.lattice_coords)) == 5  # every dot gets a distinct coordinate
+
+
 def test_build_graph_produces_engine_compatible_multigraph():
     """The single public entry point should hand back exactly the format
     engine/graph_io.py produces: an nx.MultiGraph with (int, int) nodes,
@@ -137,3 +192,50 @@ def test_build_graph_produces_engine_compatible_multigraph():
         G, interior, dots, max_radius=2, max_motifs_per_radius=50
     )
     assert isinstance(placements, list)
+
+
+HELDOUT_DIR = os.path.join(os.path.dirname(__file__), "..", "synthetic_photos_heldout")
+
+
+@pytest.mark.skipif(
+    not os.path.isdir(HELDOUT_DIR) or not os.listdir(HELDOUT_DIR),
+    reason="synthetic_photos_heldout/ not generated -- run generate_synthetic_photos_heldout.py first",
+)
+def test_dense_pattern_dot_recall_regression_kolam29_k50():
+    """Regression test for the Task B threshold fix (session 10): before
+    the fix, detect_lattice's threshold_abs was anchored to the GLOBAL
+    max distance-transform value (effectively the single largest/least-
+    degraded dot's size), which was systematically too strict for dense
+    (kolam29-scale) patterns -- verified root cause: 0 spurious
+    detections, but 120/484 real dots missed, 99.2% of those with their
+    OWN distance-transform value below the old threshold (not suppressed
+    by min_distance -- a genuine intensity-gate rejection). kolam29_k50
+    is the documented worst held-out case: dot recall was 0.752 before
+    the fix, must now be >0.99."""
+    img_path = os.path.join(HELDOUT_DIR, "kolam29_k50.jpg")
+    with open(os.path.join(HELDOUT_DIR, "kolam29_k50.json")) as f:
+        gt = json.load(f)
+
+    preprocessed = image_io.preprocess(img_path)
+    lattice = image_io.detect_lattice(preprocessed)
+
+    img = cv2.imread(img_path)
+    h, w = img.shape[:2]
+    M = cv2.getRotationMatrix2D((w / 2, h / 2), preprocessed.rotation_deg, 1.0)
+    gt_px = np.array(list(gt["dot_pixel_positions"].values()), dtype=np.float32)
+    gt_px = cv2.transform(gt_px.reshape(-1, 1, 2), M).reshape(-1, 2)
+
+    det_px = np.array(lattice.pixel_positions)
+    tree = cKDTree(det_px)
+    d, _ = tree.query(gt_px)
+    recall = (d < MATCH_TOLERANCE_PX).mean()
+    assert recall > 0.99  # was 0.752 before the fix
+
+
+def test_dense_pattern_threshold_fix_does_not_regress_sparse_patterns():
+    """Guard rail: THRESHOLD_ABS_FRAC's reduction must not cost sparse
+    (kolam19) patterns anything -- verified empirically to be a genuine
+    no-op there (the old threshold was never their binding constraint)."""
+    lattice = image_io.detect_lattice(image_io.preprocess(_image_path("kolam19_k1")))
+    gt = _load_ground_truth("kolam19_k1")
+    assert len(lattice.lattice_coords) == gt["n_nodes"]

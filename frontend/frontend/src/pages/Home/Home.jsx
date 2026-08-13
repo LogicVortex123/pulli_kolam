@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import Hero from '../../components/Hero/Hero'
 import FeatureStrip from '../../components/FeatureStrip/FeatureStrip'
 import AnalysisPipeline from '../../components/AnalysisPipeline/AnalysisPipeline'

@@ -1,4 +1,3 @@
-import React from 'react'
 import { ScanSearch, Repeat, Sparkles, ShieldCheck, Landmark } from 'lucide-react'
 import './FeatureStrip.css'
 

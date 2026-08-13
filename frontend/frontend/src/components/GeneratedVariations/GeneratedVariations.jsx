@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { RotateCw, Grid, GitFork, Infinity as LoopIcon, Flower2, BarChart2 } from 'lucide-react'
 import './GeneratedVariations.css'
 

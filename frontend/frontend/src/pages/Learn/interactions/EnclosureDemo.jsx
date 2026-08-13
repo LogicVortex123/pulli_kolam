@@ -49,21 +49,12 @@ export default function EnclosureDemo() {
   const validInnerPath = buildInnerLoopPath(cx, cy, s)
   const invalidPath = buildInvalidPath(cx, cy, s)
 
-  // Which dots are enclosed for each mode
-  const enclosedIds = {
-    valid: new Set(dots.map(d => `${d.gx},${d.gy}`)),
-    // invalid: all except top-center (0,1) and bottom-center (0,-1)
-    invalid: new Set(['−1,1', '1,1', '-1,0', '0,0', '1,0', '-1,-1', '1,-1', '-1,1', '1,1'])
-  }
-
   const isEnclosed = (gx, gy) => {
     if (mode === 'valid') return true
     // In invalid mode, top-center (0,1) and bottom-center (0,-1) are stranded
     if (gx === 0 && (gy === 1 || gy === -1)) return false
     return true
   }
-
-  const strandedCount = dots.filter(d => !isEnclosed(d.gx, d.gy)).length
 
   return (
     <div className="demo-container archival-frame">

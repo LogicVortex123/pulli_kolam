@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { RotateCw, Grid, GitFork, Infinity as LoopIcon, Flower2, BarChart2 } from 'lucide-react'
+import { useLanguage } from '../../context/LanguageContext'
 import './GeneratedVariations.css'
 
 export default function GeneratedVariations() {
+  const { t } = useLanguage()
   const [variationIndex, setVariationIndex] = useState(0)
 
   const handleGenerateMore = () => {
@@ -152,13 +154,13 @@ export default function GeneratedVariations() {
       {/* HEADER ROW */}
       <div className="generated-header-row">
         <div className="generated-title-group">
-          <h2 className="generated-title">Generated Kolam Variations</h2>
-          <p className="generated-subtitle">Generated using the extracted design rules</p>
+          <h2 className="generated-title">{t('variations.title')}</h2>
+          <p className="generated-subtitle">{t('variations.subtitle')}</p>
         </div>
 
         <button className="btn-generate-more" onClick={handleGenerateMore}>
           <RotateCw size={14} className="refresh-icon" />
-          <span>Generate More</span>
+          <span>{t('variations.generateMore')}</span>
         </button>
       </div>
 
@@ -173,13 +175,13 @@ export default function GeneratedVariations() {
 
       {/* DESIGN RULE SUMMARY */}
       <div className="rule-summary-container">
-        <h3 className="rule-summary-title">Design Rule Summary</h3>
+        <h3 className="rule-summary-title">{t('variations.ruleSummary')}</h3>
 
         <div className="rule-metrics-row">
           <div className="metric-col">
             <Grid size={18} className="metric-icon" />
             <div className="metric-text-box">
-              <span className="metric-label">Grid</span>
+              <span className="metric-label">{t('variations.grid')}</span>
               <span className="metric-val">7 &times; 7 Pulli</span>
             </div>
           </div>
@@ -187,7 +189,7 @@ export default function GeneratedVariations() {
           <div className="metric-col">
             <GitFork size={18} className="metric-icon" />
             <div className="metric-text-box">
-              <span className="metric-label">Symmetry</span>
+              <span className="metric-label">{t('variations.symmetry')}</span>
               <span className="metric-val">D4</span>
             </div>
           </div>
@@ -195,15 +197,15 @@ export default function GeneratedVariations() {
           <div className="metric-col">
             <LoopIcon size={18} className="metric-icon" />
             <div className="metric-text-box">
-              <span className="metric-label">Stroke</span>
-              <span className="metric-val">Single Continuous</span>
+              <span className="metric-label">{t('variations.stroke')}</span>
+              <span className="metric-val">{t('variations.strokeVal')}</span>
             </div>
           </div>
 
           <div className="metric-col">
             <Flower2 size={18} className="metric-icon" />
             <div className="metric-text-box">
-              <span className="metric-label">Motif Families</span>
+              <span className="metric-label">{t('variations.motifFamilies')}</span>
               <span className="metric-val">4</span>
             </div>
           </div>
@@ -211,8 +213,8 @@ export default function GeneratedVariations() {
           <div className="metric-col">
             <BarChart2 size={18} className="metric-icon" />
             <div className="metric-text-box">
-              <span className="metric-label">Complexity</span>
-              <span className="metric-val">Medium</span>
+              <span className="metric-label">{t('variations.complexity')}</span>
+              <span className="metric-val">{t('variations.complexityVal')}</span>
             </div>
           </div>
         </div>

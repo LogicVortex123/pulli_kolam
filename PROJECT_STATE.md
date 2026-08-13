@@ -1,16 +1,44 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: session 16 (M4.2 — COMPLETE: trained, evaluated, decision
-made). M4.2 built a new 128×128 encoder-decoder ML detector + REST API +
-frontend integration, fixing M4.1's diagnosed target-resolution problem
-(synthetic recall 0.05→0.998) but NOT the real-photo domain-gap problem
-(no-dot false-positive rate unchanged at 100%). **Production default
-remains `detector=classical`** — see Session 16 below and
-`docs/M4_2_EVALUATION.md` for the full, honest, mixed result. M4.1
-(session 13)'s original recommendation (do not integrate the learned
-detector into production) still stands, now for a more precisely
-understood reason. Session 14 diagnosed WHY 32×32 failed (see Section
-11's correction, below the original Session 13 report, and
+Last updated: session 21 (M4.1 ML completion campaign — gating
+experiment — see Session 21 below; NOT committed yet, uncommitted
+working-tree changes). **M4.1 status: PARTIAL** (was already effectively
+this since Session 16; this session added a measured, experimental
+false-positive mitigation but did not close the gap or change the
+production decision — `detector=classical` still default). See Session
+21's own checklist in `docs/M4_1_ML_COMPLETION_REPORT.md` for exactly
+which item keeps it PARTIAL. Session 20 (parity-aware novel generation).
+**M4.2 generation validity moved from 0/120 to 1/120** — combining
+connectivity-aware and parity-aware scoring produced PULLI's first-ever
+valid novel-generated candidate, but at 0.83%, concentrated on a single
+layout, this is proof-of-concept, not a reliable capability. **M4.2
+remains PARTIAL. M5 is still explicitly NOT ready to begin** — see
+Session 20's own "M5 gate" answer. Session 19 (connectivity-aware novel
+generation — mean components 82.42→19.99, 5/120 reached a single
+component, but validity stayed 0/120 due to Eulerian parity). Session 18
+(structural generation API +
+novelty + render + benchmark — see Session 18 below). Note the "M4.2" name is now used for TWO
+DIFFERENT things in this project's history, disambiguated by session:
+session 16's M4.2 = the 128×128 ML detector + REST API (`experiments/m4_2/`,
+`api/`, `docs/M4_2_MODEL.md`/`M4_2_API.md`/`M4_2_EVALUATION.md`); session
+18's M4.2 = structural generation API + novelty measurement + rendering
+(`engine/generation_api.py`, `engine/novelty.py`, `engine/render.py`,
+`experiments/m4_2_generation/`, `docs/M4_2_GENERATION.md`) — a
+DIFFERENT, later task's "M4.2 generative reconstruction" spec, unrelated
+to the ML detector. Read the filename/doc, not just the milestone
+number, to know which one is meant. Session 17 (real-photo evaluation
+pipeline hardening) and Session 16 (M4.2 ML detector — COMPLETE: trained,
+evaluated, decision made, committed and pushed to
+`origin/feature/generation-pipeline` at commit `59d404d`). M4.2 built a new 128×128 encoder-decoder ML detector
++ REST API + frontend integration, fixing M4.1's diagnosed
+target-resolution problem (synthetic recall 0.05→0.998) but NOT the
+real-photo domain-gap problem (no-dot false-positive rate unchanged at
+100%). **Production default remains `detector=classical`** — see
+Session 16 below and `docs/M4_2_EVALUATION.md` for the full, honest,
+mixed result. M4.1 (session 13)'s original recommendation (do not
+integrate the learned detector into production) still stands, now for a
+more precisely understood reason. Session 14 diagnosed WHY 32×32 failed
+(see Section 11's correction, below the original Session 13 report, and
 `diagnostics/M4_1_HEATMAP_DIAGNOSIS.md`): a training-target/heatmap-
 resolution mismatch with this dataset's real dot density (180-500+
 dots/image). Session 15 quantified that mismatch directly (no CNN
@@ -20,15 +48,534 @@ below and
 current 32×32 architecture's target recovers only 5-28% of true dots as
 distinguishable peaks even in the ideal noise-free case; 128×128 is the
 minimum resolution that recovers 100% across the observed density
-range. **Session 16 built a new 128×128 model + REST API + frontend
-upload page against that finding, but as of this update the model is
-still training and `experiments/m4_2/evaluate_m4_2.py` has not been run
-— there is NO result yet on whether M4.2 actually beats classical.**
-Do not assume a trained model or a working API in this repo means ML
-detection is production-ready or evaluated; it explicitly is not yet,
-per measured evidence. No production integration has occurred at any
-point in sessions 13-16; `detector=classical` remains the default
-everywhere.
+range. **Session 16 built the new 128×128 model + REST API + frontend
+upload page against that finding, fully trained it (30 epochs, best
+val_loss 0.1602), ran the validation-only peak-detection sweep, and ran
+the full pre-committed evaluation gate (`experiments/m4_2/evaluate_m4_2.py`)
+against classical on 4 populations — see Session 16 below for the
+result.** Training/evaluation is DONE, not pending. The result is mixed
+(target-resolution problem: fixed; real-photo domain-gap problem: not
+fixed) and, per the pre-committed decision rule, ML did NOT win — do not
+assume a trained model or a working API in this repo means ML detection
+is production-ready; it was evaluated and explicitly did not clear the
+bar. No production integration has occurred at any point in sessions
+13-16; `detector=classical` remains the default everywhere. Total test
+count: **168/168 passing** (123 core + 16 M4.1 + 18 M4.2 + 11 API).
+
+## Session 20 — parity-aware novel generation (MARGINAL IMPROVEMENT, M4.2 still PARTIAL, not committed)
+
+**Scope**: Session 19 identified Eulerian parity (odd-degree nodes) as
+the precise remaining bottleneck after connectivity-aware scoring fixed
+fragmentation but left validity at 0/120. This session implemented and
+A/B/C-tested a parity-aware placement scorer, combinable with
+connectivity-aware scoring.
+
+**Bottom line: 0/120 → 1/120 valid.** The first valid novel-generated
+candidate in this project's history (M3.7 through Session 19 all
+reported 0). Mean odd-degree-node count dropped sharply (55.90 → 9.38
+with connectivity+parity vs. connectivity-alone), confirming the parity
+mechanism works — but mean fragmentation WORSENED (19.99 → 98.12)
+relative to connectivity-alone, because the two additive score terms
+now compete for the same accept/reject decision and don't always agree.
+**1/120 is genuine, measured progress — not a claim that generation is
+now reliable.**
+
+### What was built
+
+- `engine/novel_generation.py`: `PARITY_IMPROVEMENT_WEIGHT` constant,
+  `_parity_effect()` (exact GLOBAL delta_odd computation — scans only
+  the nodes a candidate touches, since untouched nodes provably can't
+  change parity; correctly handles multi-strand placements via the same
+  `deg_change` modular-arithmetic convention `_novel_score` already
+  uses), `_parity_score()`. New opt-in `parity_aware: bool = False`
+  parameter on `select_novel_placements`/`generate_novel_kolam`,
+  independent of `connectivity_aware` (either or both may be set).
+- **Bootstrap guard was necessary, not precautionary** (verified by
+  direct testing, same failure shape as connectivity's own bootstrap
+  bug): an unguarded parity penalty caused TOTAL collapse (zero
+  placements on every input), because many real motif shapes leave a
+  newly-touched node at odd degree, and with nothing yet accepted,
+  every subsequent candidate is evaluated from the same empty state.
+  Fixed by reusing the same `any_real_structure_exists` flag
+  connectivity already tracks — parity scores exactly 0 (neutral, per
+  this session's own literal instruction) until real structure exists.
+  Weight calibrated via a light sweep (`{0.25,0.5,1,2}×EDGE_UNIT_COST`);
+  1× selected (plain, symmetric, past the steepest improvement).
+- `engine/generation_api.py`: `GenerationConstraints.parity_aware`
+  (default `False`), threaded through.
+- `experiments/m4_2_generation/run_benchmark.py`: `run()` gained
+  `parity_aware` + `n_odd_degree_nodes` metrics (default preserves
+  exact original behavior).
+- `experiments/m4_2_generation/run_parity_comparison.py` (new): the
+  A/B/C harness (baseline / connectivity-only / connectivity+parity),
+  120 candidates per arm, identical config. Full results:
+  `experiments/m4_2_generation/results/parity_comparison.json`.
+- `docs/M4_2_PARITY_EVALUATION.md` — full 13-section report, including
+  per-candidate failure analysis of all 3 fully-connected arm-C
+  candidates (the ONE valid one is an Eulerian PATH with 2 odd nodes;
+  the closest near-miss has 4 odd nodes and is analyzed in detail —
+  the near-miss's 4 remaining odd-degree nodes are structurally
+  unreachable by the current single-forward-pass search, since it never
+  revisits an already-decided placement) and the explicit "Is PULLI
+  ready to begin M5?" answer (below).
+- Tests: `tests/test_parity_scoring.py`, 14 new — covers positive/
+  neutral/negative parity effect, multi-strand correctness, bootstrap
+  non-crash, connectivity-unchanged when parity off, default-unchanged
+  when both off, determinism, `check_validity` untouched, multiplicity
+  preserved. **Full suite: 227/227 passing** (213 before this session +
+  14 new). No existing test modified or weakened.
+
+### Measured results (120 candidates per arm, identical config)
+
+| metric | A: baseline | B: connectivity-only | C: connectivity+parity |
+|---|---|---|---|
+| Valid | 0/120 | 0/120 | **1/120** |
+| Fully connected | 0/120 | 5/120 | 3/120 |
+| Mean components | 82.42 | 19.99 | 98.12 |
+| Mean odd-degree nodes | 45.93 | 55.90 | **9.38** |
+| Unique rate | 43.3% | 85.8% | 78.3% |
+| Multiplicity violations | 0/120 | 0/120 | 0/120 |
+| Runtime/candidate | 0.256s | 0.791s | 0.377s |
+
+### M4.2 status: still PARTIAL
+
+1/120 (0.83%), concentrated on a single dot layout out of six tested,
+non-reproducible on any other layout in this exact benchmark. Proof of
+concept the mechanism works, not a dependable capability. **Not
+COMPLETE**, per this project's own "prefer honest partial progress over
+declaring completion" rule.
+
+### Precise next bottleneck (identified, not attempted)
+
+The single-pass, non-backtracking search structure itself — the
+closest near-miss (4 odd-degree nodes remaining, fully connected) is
+structurally unreachable by any later placement in the same forward
+pass, once the fixed candidate order is exhausted. Recommended next
+experiment: a bounded, opt-in second "closing pass" scored ONLY on
+parity effect, using placements still drawn from the same motif library
+(no invented edges, no source residual, no silent repair) — a
+genuinely new, separately-scoped experiment, not a scoring-weight
+tweak. Full reasoning: `docs/M4_2_PARITY_EVALUATION.md` Section 13.
+
+### M5 gate — still no
+
+Unchanged conclusion from Session 19: 1/120 valid, on one layout, is
+not "candidates the system can reliably produce as grammar input." M5
+remains NOT STARTED.
+
+## Session 19 — connectivity-aware novel generation (PARTIAL IMPROVEMENT, M4.2 still PARTIAL, not committed)
+
+**Scope**: Session 18 measured M4.2 generation validity at 0/120 and
+identified the root cause as `select_novel_placements` scoring
+placements with no global connectivity awareness. This session
+implemented and A/B-tested a connectivity-aware placement scorer.
+
+**Bottom line: fragmentation genuinely improved; validity did not.**
+Mean connected components per candidate dropped from **82.42 to 19.99**
+(~4× reduction) across the identical 120-candidate benchmark, and
+**5/120 candidates reached exactly 1 connected component** (0/120
+before, and literally never observed in any prior session — M3.7
+through Session 18). **Validity stayed at 0/120 in both arms** — all 5
+fully-connected candidates fail Eulerian parity (18-166 odd-degree
+nodes remaining). Connectivity was A real bottleneck, not THE
+bottleneck; fixing it isolated the next one precisely (parity), rather
+than closing the gate.
+
+### What was built
+
+- `engine/novel_generation.py`: `_UnionFind` (minimal incremental
+  disjoint-set), `_connectivity_effect()` (classifies a placement's
+  edges as merging two real components / extending one / creating a new
+  isolated fragment — handles multi-edge placements spanning several
+  component pairs, not just single edges), `_connectivity_score()`
+  (additive term, same `EDGE_UNIT_COST` currency as the existing
+  `_novel_score`). New opt-in `connectivity_aware: bool = False`
+  parameter on `select_novel_placements` and `generate_novel_kolam` —
+  default preserves the exact original M3.7 behavior (verified: a
+  direct re-run of the original 120-candidate benchmark with the
+  refactored code reproduced byte-identical numbers).
+- `engine/generation_api.py`: `GenerationConstraints.connectivity_aware`
+  (default `False`), threaded straight through.
+- **Critical finding during calibration, not glossed over**: a naive,
+  symmetric penalty weight for "creates a new isolated fragment"
+  reproduced the EXACT bootstrap-collapse bug `_novel_score`'s own
+  parity term already had to solve once (zero placements selected,
+  because the very first-ever placement on an empty layout necessarily
+  "creates an isolated pair" by definition). Fixed with a bootstrap
+  guard (penalty only applies once real structure exists elsewhere). A
+  further sensitivity sweep found that ANY isolated-fragment penalty
+  weight ≥ 0.1× `EDGE_UNIT_COST` made fragmentation WORSE than weight 0,
+  because in a single forward greedy pass (no backtracking), a fresh
+  fragment is the ONLY raw material a later candidate can ever merge
+  into something real — suppressing fragment creation starves the merge
+  mechanism. Final weights: merge reward 8×, extend reward 4×, isolation
+  penalty 0.05× `EDGE_UNIT_COST` (confirmed identical to weight-0 across
+  a 4-layout check, so the required penalty mechanism is real and
+  tested without being the dominant term in practice). Full reasoning:
+  `docs/M4_2_CONNECTIVITY_EVALUATION.md` Section 4.
+- `experiments/m4_2_generation/run_benchmark.py`: `run()` gained a
+  `connectivity_aware` parameter (default `False`, exact original
+  behavior preserved) plus new per-row/summary fields
+  (`n_connected_components`, `fully_connected_rate`).
+- `experiments/m4_2_generation/run_connectivity_comparison.py` (new): A/B
+  harness calling `run()` with both values under IDENTICAL config —
+  cannot silently drift out of sync with the baseline benchmark, since
+  both arms share one function. Full results:
+  `experiments/m4_2_generation/results/connectivity_comparison.json`.
+- `docs/M4_2_CONNECTIVITY_EVALUATION.md` — full 14-section report per
+  this session's task template, including the explicit "Is PULLI ready
+  to begin M5?" answer (below).
+- Tests: `tests/test_connectivity_scoring.py`, 13 new — covers merge/
+  extend/isolated-pair classification, the bootstrap guard, multi-edge
+  placements, multiplicity-cap preservation, determinism,
+  `connectivity_aware=False` byte-identical compatibility, and that
+  `check_validity` itself is never bypassed. **Full suite: 213/213
+  passing** (200 before this session + 13 new). No existing test
+  modified or weakened.
+
+### Measured results (120 candidates per arm, identical config)
+
+| metric | baseline (off) | connectivity-aware (on) |
+|---|---|---|
+| Validity rate | 0/120 (0.0%) | 0/120 (0.0%) — unchanged |
+| Fully connected (1 component) | 0/120 (0.0%) | **5/120 (4.2%)** |
+| Connected components (mean) | 82.42 | **19.99** |
+| Connected components (min) | 2 | **1** |
+| Multiplicity violations | 0/120 | 0/120 — unchanged |
+| Unique candidates (novelty) | 43.3% | **85.8%** (more placements per candidate → more distinct shapes) |
+| Exact duplicate rate (any) | 0.0% | 0.0% — unchanged |
+| Runtime (mean/candidate) | 0.2509s | 0.7971s (~3.2× slower) |
+
+### M4.2 status: still PARTIAL
+
+Per this session's own explicit gate ("only declare M4.2 COMPLETE if
+the generator itself produces valid novel candidates... demonstrated by
+benchmark evidence"): validity is 0/120, unchanged. **Not COMPLETE.**
+
+### M5 gate — explicit answer
+
+**"Is PULLI ready to begin M5?" No.** M5 needs structurally valid
+generated candidates as input; this session's own benchmark evidence is
+0/120 valid, still. The concrete, scoped next step (a parity-aware
+scoring term, same additive/opt-in/bootstrap-guard-checked pattern this
+session validated) is identified but NOT attempted — a distinct future
+experiment, not a variant of this one. M5 remains NOT STARTED.
+
+Work from sessions 4-12 lives on branch `feature/generation-pipeline`
+(pushed to origin, not yet merged to `master`).
+
+## Session 18 — structural generation API, novelty measurement, rendering (PARTIAL, not committed)
+
+**Scope**: this session was given a 3-milestone campaign spec
+(M4.1 ML investigation → M4.2 generative reconstruction → M5 structural
+grammar). Before starting, confirmed with the user that M4.1 was
+already complete (sessions 13-16) and should be CITED, not re-run, and
+that M5 should be explicitly scoped OUT rather than surveyed shallowly
+alongside a shallow M4.2 — the user chose "M4.2 only, done honestly."
+This section reports that choice's actual result.
+
+### Honest status breakdown (per this session's own explicit convention)
+
+| Item | Status |
+|---|---|
+| M4.1 (ML investigation) | **COMPLETE** (cited, not re-run) — `docs/M4_1_ML_INVESTIGATION.md` maps every M4.1-A..F phase onto sessions 13-16's real, already-executed evidence. Classical stays production default. |
+| `engine/generation_api.py` (constraint-based `generate_kolam_candidate`) | **IMPLEMENTED + TESTED** — 12 tests, `tests/test_generation_api.py`, includes a test proving it's a byte-for-byte-equivalent thin wrapper over `engine.novel_generation.generate_novel_kolam`, not a reimplementation. |
+| `engine/novelty.py` (D4+translation graph fingerprint, novelty report) | **IMPLEMENTED + TESTED + MEASURED** — 10 tests, `tests/test_novelty.py`; measured against a real 120-candidate benchmark (below), not just unit-tested in isolation. |
+| `engine/render.py` (deterministic SVG/PNG) | **IMPLEMENTED + TESTED** — 7 tests, `tests/test_render.py`, including an explicit test that an invalid candidate is labeled `INVALID`, never silently drawn as if successful. |
+| `experiments/m4_2_generation/run_benchmark.py` | **IMPLEMENTED + MEASURED** — 120 real candidates generated and analyzed, not simulated; full results `experiments/m4_2_generation/results/benchmark.json`, interpretation `docs/M4_2_GENERATION.md`. |
+| Generated-pattern structural validity (M4.2 gate's own hardest requirement) | **MEASURED, FAILING**: 0/120 valid in this session's benchmark. This is a real, already-known (since M3.7, `docs/NOVEL_GENERATION.md`, 0/5 at the time) algorithmic gap in `select_novel_placements` (no connectivity-seeking strategy) — confirmed, not fixed, at 24× the previous sample size. |
+| **M4.2 overall (session 18's meaning of the name)** | **PARTIAL** — every supporting piece (API, novelty, rendering, benchmark, tests) is real and tested; the one gate item that requires the generator itself to improve does not pass. Not marked COMPLETE per this project's explicit "don't mark complete because code exists" rule. |
+| M5 (structural grammar) | **NOT STARTED** — `docs/M5_STRUCTURAL_GRAMMAR.md` is a scoping stub only (what exists to build on, what's missing, recommended order for a future session), not an implementation. |
+
+### What was built (files)
+
+- `engine/generation_api.py`: `GenerationConstraints` (lattice as an
+  explicit dot set OR `(width, height)`, motif library or
+  `motif_sources` to build one from, `max_multiplicity`,
+  `max_placements`, `require_single_stroke`), `rectangular_lattice()`,
+  `motif_library_from_sources()` (pools + dedupes motifs across MULTIPLE
+  source patterns — the specific "richer library" extension
+  `docs/NOVEL_GENERATION.md` flagged as not-yet-attempted), and
+  `generate_kolam_candidate()` → `GenerationResult` (candidate +
+  `satisfied`/`reasons_unsatisfied`, never a silent pass).
+- `engine/novelty.py`: `graph_fingerprint()` (D4 + translation canonical
+  form of a graph's edge multiset — reuses the same 8-transform
+  canonicalization idea `engine.symmetry.canonical_motif` already uses
+  for local motif windows, applied to a whole graph), `novelty_report()`
+  (uniqueness among candidates, exact topological duplicate rate
+  layout-independent, exact coordinate / near-duplicate rate only where
+  layouts match a source — `None`/excluded, not fabricated as 0%, when
+  no layout-comparable pair exists).
+- `engine/render.py`: `render_trace_svg`/`render_trace_png` (shared
+  primitive), `render_generated_kolam_{svg,png}` (straight-segment
+  stroke through `dot_trace`, `INVALID` label when `is_valid=False`),
+  `render_kolam_pattern_{svg,png}` (renders the source pattern's ACTUAL
+  `trace_points`, not an approximation). Uses PIL (`Pillow`, already
+  present in the dev environment via matplotlib's dependency chain, now
+  declared directly in `requirements.txt` since `engine/render.py`
+  imports it directly) for PNG; hand-built SVG strings for SVG — no new
+  heavyweight dependency.
+- `experiments/m4_2_generation/run_benchmark.py`: 120 candidates, fixed
+  deterministic grid (10 motif libraries × 6 layouts × 2 multiplicity
+  caps — see `docs/M4_2_GENERATION.md` for the exact config), 30.2s
+  total runtime. Result: 0/120 valid, 0 multiplicity violations, 0%
+  exact-duplicate rate (topological OR coordinate) against source
+  patterns, 43.3% unique among candidates themselves.
+- `docs/M4_1_ML_INVESTIGATION.md`, `docs/M4_2_GENERATION.md`,
+  `docs/M5_STRUCTURAL_GRAMMAR.md` — see above.
+- Tests: 29 new (`tests/test_render.py` ×7, `tests/test_novelty.py` ×10,
+  `tests/test_generation_api.py` ×12). **Full suite: 200/200 passing**
+  (171 before this session's changes + 29 new). No existing test was
+  modified or weakened.
+- `requirements.txt`: added `Pillow` (declared for reproducibility, same
+  convention as `torch`/`fastapi` — already present transitively before
+  this session, now a direct, named dependency since `engine/render.py`
+  imports it directly).
+- `.gitignore`: added the 3 new docs to the `*.md` allow-list (same
+  pattern as every prior session's new doc).
+
+### What was explicitly NOT done this session (real gaps, not hidden)
+
+- **The connectivity-seeking placement strategy** `docs/NOVEL_GENERATION.md`
+  already named as missing since M3.7 — still missing. This is the
+  single highest-value next task for M4.2 to become genuinely COMPLETE
+  (see `docs/MAJOR_MILESTONE_REPORT.md`'s "next bottleneck").
+- **Hard search-based constraints** (`symmetry`, `complexity`,
+  `stroke count` as TARGETS `generate_kolam_candidate` searches for,
+  rather than a single one-shot candidate) — explicitly out of scope,
+  documented as M5-E's job in `docs/M5_STRUCTURAL_GRAMMAR.md`.
+- **M5 in its entirety** — not started, see the stub doc.
+- **New FastAPI endpoints** (`/generate`, `/patterns/{id}`,
+  `/grammar/{id}`) — the originating task's own instruction said not to
+  spend the majority of the session on frontend/API polish; this session
+  spent its effort on the generation engine itself instead. `api/main.py`
+  (session 16's M4.2 ML-detector API) was not touched.
+- **Performance profiling** (large photographs, 24k+ trace points,
+  repeated graph canonicalization) — not done this session; nothing in
+  this session's new code touches the real-photo pipeline or
+  `kolam109`-scale patterns, so there was no new hot path to profile.
+
+### Tests / real-photo baseline (unchanged from Session 17, re-verified)
+
+Full suite: 200/200 passing (up from 171 at the end of Session 17).
+`validate_real_photos.py --json experiments/real_photo_baseline.json`
+re-run this session for the record (Section 39/final-report task) — see
+below; results are IDENTICAL to Session 17's (this session's changes
+never touch `engine/image_io.py` or the real-photo pipeline).
+
+## Session 17 — real-photo evaluation pipeline hardening (COMPLETE, not committed)
+
+**Scope**: the documented `trace_path` `IndexError` on
+`kolam_india12_mckaysavage.jpg` (asymmetric `Lattice`: >=1 pixel
+detections, 0 fitted lattice coords — known since M4.0, deliberately
+never fixed in M4.0/M4.1/M4.1.1/M4.1.2/M4.2, each of which instead
+worked around it locally inside its own ML adapter's "collapse sparse
+detections to empty" convention) now has a single, shared, root-level
+fix, plus `validate_real_photos.py` was made robust and machine-
+readable.
+
+**Root cause**: `detect_lattice`'s own documented `< 3 points` branch
+returns `Lattice(pixel_positions=[...1 or 2 items...], lattice_coords=[],
+dot_radius=R)` — a legitimate, tested, intentional convention
+(`tests/test_image_io.py::test_detect_lattice_handles_{one,two}_
+candidate_dots_without_crashing`). `trace_path` was never written to
+defend against receiving that specific shape — it indexes
+`lattice.lattice_coords[a]` for hub ids `a` derived from
+`pixel_positions`' own length, which is out of range when
+`lattice_coords` is empty. `engine.ml_contract.assert_conforms` cannot
+catch this by itself (0 coords is a legal value of its own "0 or
+n_pixels" shape invariant) — this was already documented in
+`docs/ML_CONTRACT.md` Section 5 and reproduced in
+`tests/test_ml_contract.py`.
+
+**Fix (upstream gate, NOT a trace_path edit)**: added
+`engine.image_io.is_traceable(lattice)` — returns
+`len(lattice_coords) == len(pixel_positions)` — and changed
+`build_graph` (the project's one public image→graph entry point) to
+call `trace_path` only when `is_traceable(lattice)`, else use `edges =
+[]`. `trace_path`'s own body is byte-for-byte unchanged; it still
+raises `IndexError` on a direct, ungated call — proven by the
+pre-existing `test_asymmetric_lattice_shape_is_a_documented_unfixed_
+blocker` test, which still passes unmodified. This matches
+`docs/ML_CONTRACT.md`'s own long-standing recommendation ("a conforming
+detector should treat 1-2 raw detections... as equivalent to 0 usable
+detections") — now enforced once, at the boundary, for every caller
+(classical AND any ML detector), instead of being re-implemented ad hoc
+in each new ML adapter (as M4.1's and M4.2's adapters both did
+independently).
+
+**`validate_real_photos.py` rewritten**: now classifies every one of
+the 22 real photos into one of six mutually-exclusive outcomes
+(`SUCCESS`, `NO_DOT_DETECTION`, `INSUFFICIENT_LATTICE_POINTS`,
+`LATTICE_FIT_FAILED`, `TRACE_FAILED`, `GRAPH_FAILED`), records
+exception type/message when a stage fails, and never aborts early. Added
+`--json PATH` for machine-readable output (filename, dimensions,
+preprocessing stats, detection counts, traceability, outcome, failure
+stage, exception info — full schema in the script's own docstring). The
+script uses the same `is_traceable` gate as `build_graph` before calling
+`trace_path` directly (it does not go through `build_graph`, since it
+also needs Level-3 motif-induction diagnostics `build_graph` doesn't
+expose).
+
+**Real-photo results, before vs. after** (22 photos, unchanged
+detection algorithm — this is NOT an ML improvement, still the same
+deterministic CV baseline; only the crash/classification behavior
+changed):
+
+| | before | after |
+|---|---|---|
+| Total probed | 22 | 22 |
+| Crashed (uncaught exception) | 1 (`kolam_india12_mckaysavage.jpg`, `IndexError`) | 0 |
+| Zero dot-pixel detections | 13 | 13 (unchanged) |
+| Successful lattice fit (>=3 pts) | 6 | 6 (unchanged) |
+| New: `INSUFFICIENT_LATTICE_POINTS` (1-2 pts, no fittable lattice) | n/a (this bucket didn't exist; 1 of these crashed, 2 silently had no Level-2 row at all before the crash-classification existed) | 3 (`kolam2_tshrinivasan.jpg`, `kolam_aruppukottai_tanandaraj.jpg`, `kolam_india12_mckaysavage.jpg`) |
+| `SUCCESS` | 6 (implicit — "no crash") | 6 (`kolam_attur1_infofarmer.jpg`, `kolam_india06_mckaysavage.jpg`, `kolam_pongal_uthandi_tagooty.jpg`, `kolam_thiruvananthapuram_vism.jpg`, `muggu_kollam_sirensongs.jpg`, `rangoli_32dots_rachana.jpg`) |
+
+The detection COUNTS are bit-identical before/after (nothing about
+detection itself changed) — only `kolam_india12_mckaysavage.jpg`
+changed from "uncaught crash, no row" to "classified
+`INSUFFICIENT_LATTICE_POINTS`, 2 pixel detections, 0 lattice coords,
+fully reported." `kolam2_tshrinivasan.jpg` and
+`kolam_aruppukottai_tanandaraj.jpg` were already non-crashing before
+(1 pixel detection each, `< 3` guard already handled 1-point cases
+without crashing) but are now explicitly labeled instead of just
+showing `lat_ok=0` with no outcome category.
+
+**Tests added** (`tests/test_ml_contract.py`, 3 new — total suite
+**171/171 passing**, up from 168): `test_is_traceable_flags_the_
+asymmetric_shape_false`, `test_is_traceable_true_for_empty_and_well_
+formed_lattices`, and the key regression test,
+`test_build_graph_no_longer_crashes_on_an_image_that_naturally_
+triggers_the_asymmetric_shape` — builds a REAL two-blob image (not a
+hand-constructed `Lattice`), writes it to a temp file, and calls
+`image_io.build_graph()` (the actual public entry point) end-to-end,
+proving the fix works on organically-produced detector output, not
+just a synthetic test fixture. All 168 pre-existing tests unchanged and
+still passing, including the crash-reproduction test proving
+`trace_path` itself was not touched.
+
+**ML contract**: unchanged. `engine/ml_contract.py` was not modified.
+`is_traceable` is a NEW, separate, additive function in
+`engine/image_io.py` — it does not alter `assert_conforms`'s existing
+(intentionally incomplete, per its own docstring) behavior.
+
+**Remaining CV limitations** (unchanged by this session, listed for
+completeness): 13/22 real photos still produce zero detections
+(`NO_DOT_DETECTION` — mostly genuine non-dot-grid kolam/rangoli styles
+or low-contrast lighting, see Session 12/13 root-causing); of the 6
+`SUCCESS` cases, most are NOT fully connected
+(`kolam_attur1_infofarmer.jpg`, `kolam_india06_mckaysavage.jpg`,
+`kolam_thiruvananthapuram_vism.jpg`, `rangoli_32dots_rachana.jpg` all
+`connected=False`) — a separate, pre-existing, out-of-scope
+stroke-tracing/connectivity limitation, not something this session's
+gate fix touches or claims to fix.
+
+**M4.1 readiness verdict**: this was infrastructure hardening, not a
+step toward a new ML attempt — M4.1/M4.1.2/M4.2 (sessions 13-16) already
+happened and already reached a mixed, evaluated conclusion (see the
+"M4.1 deliverables summary" section above and Sessions 13-16 below).
+This session's practical effect is that the real-photo diagnostic
+script — used by every one of those prior sessions — is now more
+trustworthy (no silent early-abort risk, explicit machine-readable
+failure taxonomy) for any FUTURE real-photo work, e.g. the still-open
+`degrade_v3` confound diagnostic or a real-photo-domain-transfer attempt
+(both already flagged as open items in the M4.2 write-up).
+
+**Next step**: none forced by this session. If a future session
+revisits real-photo ML work, `validate_real_photos.py --json` now gives
+a clean, structured baseline to diff against.
+
+**Git status at end of session**: NOT committed (per this session's
+explicit instruction). Modified: `engine/image_io.py`,
+`validate_real_photos.py`, `tests/test_ml_contract.py`,
+`PROJECT_STATE.md`. `git diff --check`: clean (only a CRLF-normalization
+warning on `PROJECT_STATE.md`, not a real issue).
+
+## M4.1 deliverables summary (answers the standard M4.1 task-prompt checklist)
+
+A later session was handed a full "M4.1 ML implementation" task prompt
+(Phase 0-10, 15-point deliverables list) that assumed the repo was
+still at M4.0 (22 real photos, no ML code yet). That assumption is
+stale — sessions 13-16 already carried this exact work through M4.1,
+M4.1.1, M4.1.2, and M4.2. Rather than re-run Phases 0-10 from scratch
+(which would duplicate ~4 sessions of work and re-litigate settled,
+evidenced conclusions), this section maps that prompt's own deliverables
+list onto what already exists, so a future session doesn't repeat the
+same false-start.
+
+1. **Files changed/created**: `experiments/m4_1/*` (baseline CNN
+   attempt + diagnostics), `experiments/m4_2/*` (production-candidate
+   model, data gen, training, peak sweep, adapter, tests), `api/*`
+   (FastAPI service), `frontend/frontend/src/pages/Detect/*` +
+   `src/lib/api/*` (upload UI), `docs/M4_2_{IMPLEMENTATION_PLAN,API,
+   MODEL,EVALUATION}.md`. `engine/*` untouched throughout.
+2. **Architecture**: `image → engine.image_io.preprocess() →
+   [classical detect_lattice() | ML LearnedLatticeDetectorV2] →
+   Lattice → engine graph/motif/symmetry/reconstruction (unmodified)`.
+   Exactly the perception/structure split this prompt's CORE PRINCIPLE
+   describes — already the design, not a pending decision.
+3. **Training command**: `python experiments/m4_2/train.py` (seed 42;
+   `KMP_DUPLICATE_LIB_OK=TRUE` needed only if run alongside classical
+   code in the same process).
+4. **Evaluation command**: `python experiments/m4_2/evaluate_m4_2.py`.
+5. **Synthetic dataset size**: M4.2 — 135 source patterns (100/15/20
+   train/val/test), 505 rendered images (400/45/60). Excludes kolam109
+   (measured ~6800-7000 dots/pattern, only 2.1% recoverable at 128×128).
+6. **Split**: pattern-source-disjoint (verified via set-intersection
+   assertion, not just assumed), disjoint seed ranges — exactly Phase
+   5's requirement, already implemented in both M4.1 and M4.2.
+7. **Model parameter count**: M4.1 `DotHeatmapNet` 60,641 params
+   (32×32 output, encoder-only). M4.2 `DotHeatmapNetV2` 382,769 params
+   (128×128 native output, U-Net encoder-decoder with skip
+   connections).
+8. **Training time**: not recorded as wall-clock in either session's
+   logs (`experiments/m4_2/results/training_log.json` has per-epoch
+   loss, not timestamps) — reported here as "not recorded" rather than
+   guessed.
+9. **Baseline metrics (classical)**: see Session 13 Section 5 and
+   `docs/M4_2_EVALUATION.md`'s table — recall 1.0/0.9995 on gentle
+   synthetic degradation, 0.11-0.20 on the harsher `degrade_v2`/
+   `degrade_v3` sets (a confound, documented, not resolved).
+10. **ML metrics**: M4.1 — worse than classical on every measured axis
+    (recall 0.04-0.07 vs. classical's 0.09-1.0 depending on set).
+    M4.2 — synthetic recall 0.998-0.999 (fixes the resolution problem
+    Phase 3's hypothesis targets), but real no-dot false-positive rate
+    unchanged at 18/18 (100%).
+11. **Real-photo diagnostics**: both M4.1 and M4.2 ran the full 22-photo
+    corpus, including every image this new prompt's Phase 7 explicitly
+    names (`kolam_india12_mckaysavage.jpg`, `kolam_attur1_infofarmer.jpg`,
+    etc.) — see Session 13 Section 9 and `docs/M4_2_EVALUATION.md`'s
+    "Real in-scope photos" table. The `trace_path` crash on
+    `kolam_india12_mckaysavage.jpg` remains reproducible and was never
+    silently caught (Phase 7's explicit requirement).
+12. **Failure analysis**: Session 13 Section 11 + `docs/M4_2_EVALUATION.md`
+    "Interpretation" — distribution shift (synthetic→real) is the
+    dominant, unresolved failure mode across both model generations;
+    resolution/target-representation (the OTHER plausible cause) was
+    isolated and fixed in M4.2, proving the two are separable problems.
+13. **Test result**: 168/168 passing (123 core + 16 M4.1 + 18 M4.2 +
+    11 API) — includes source-split-disjointness, model output shape,
+    inference-adapter contract compliance, deterministic inference, and
+    checkpoint-loading tests, i.e. Phase 9's list is already covered.
+14. **M4.1 status**: COMPLETE, with a negative result (documented, not
+    hidden). **M4.2 status**: COMPLETE, with a mixed result — target-
+    resolution problem solved, real-photo domain-gap problem not solved.
+    `detector=classical` is production default in both `api/` and
+    nowhere is ML silently substituted.
+15. **Recommended next direction**: NOT another synthetic-data
+    iteration (M4.2 already fits its synthetic target near-perfectly —
+    Phase 6's "highest ML accuracy is not the objective" point is
+    already borne out). The two open, unresolved items are (a) the
+    `degrade_v3` classical-recall-collapse confound (needs its own
+    M4.1.1-style diagnostic) and (b) real-photo domain transfer, which
+    would require training on real-photo-derived data/augmentation
+    statistics rather than purely synthetic renders — see
+    `docs/M4_2_EVALUATION.md`'s "Recommendation for next steps" for the
+    full reasoning already written up.
+
+Full narrative detail for all of the above is in Session 13 (M4.1),
+Session 14 (M4.1.1 diagnostic, folded into Session 13's Section 11
+correction), Session 15 (M4.1.2), and Session 16 (M4.2) below.
 
 ## Session 16 — M4.2: high-res ML detector + API/frontend integration (COMPLETE)
 

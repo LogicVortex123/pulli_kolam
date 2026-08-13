@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { detect, analyze, compareDetectors } from '../../lib/api/kolam'
+import { detect, analyze, reconstruct, compareDetectors } from '../../lib/api/kolam'
 import { categorizeCompareDots } from '../../lib/api/kolam'
 import './Detect.css'
 
@@ -14,10 +14,12 @@ export default function Detect() {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [mode, setMode] = useState('classical')
   const [status, setStatus] = useState('idle') // idle | loading | success | error
+  const [stage, setStage] = useState(null) // detecting | analyzing | reconstructing (only while status === 'loading')
   const [errorMsg, setErrorMsg] = useState(null)
   const [detectResult, setDetectResult] = useState(null)
   const [compareResult, setCompareResult] = useState(null)
   const [analysis, setAnalysis] = useState(null)
+  const [reconstruction, setReconstruction] = useState(null)
   const [imgNaturalSize, setImgNaturalSize] = useState(null)
   const [imgRenderedSize, setImgRenderedSize] = useState(null)
   const imgRef = useRef(null)
@@ -30,7 +32,9 @@ export default function Detect() {
     setDetectResult(null)
     setCompareResult(null)
     setAnalysis(null)
+    setReconstruction(null)
     setStatus('idle')
+    setStage(null)
     setErrorMsg(null)
   }, [])
 
@@ -54,30 +58,56 @@ export default function Detect() {
     setDetectResult(null)
     setCompareResult(null)
     setAnalysis(null)
+    setReconstruction(null)
 
     if (mode === 'compare') {
+      setStage('detecting')
       const { data, error } = await compareDetectors(file)
       if (error) {
         setStatus('error')
+        setStage(null)
         setErrorMsg(describeError(error))
         return
       }
       setCompareResult(data)
       setStatus('success')
+      setStage(null)
       return
     }
 
+    setStage('detecting')
     const { data, error } = await detect(file, mode)
     if (error) {
       setStatus('error')
+      setStage(null)
       setErrorMsg(describeError(error))
       return
     }
     setDetectResult(data)
 
-    const { data: analyzeData } = await analyze(file, mode)
-    if (analyzeData) setAnalysis(analyzeData)
+    setStage('analyzing')
+    const { data: analyzeData, error: analyzeError } = await analyze(file, mode)
+    if (analyzeError) {
+      // Detection succeeded but analysis failed -- still show the real
+      // detection result rather than discarding it; report analysis
+      // failure honestly instead of pretending nothing happened.
+      setStatus('error')
+      setStage(null)
+      setErrorMsg(describeError(analyzeError))
+      return
+    }
+    setAnalysis(analyzeData)
 
+    setStage('reconstructing')
+    const { data: reconstructData, error: reconstructError } = await reconstruct(file, mode)
+    // Reconstruction is best-effort: an uploaded photo may not carry
+    // enough structure to reconstruct even when detection/analysis
+    // succeeded. Never fabricate a result -- an error or an explicit
+    // "nothing to reconstruct" note is shown as-is, not hidden.
+    if (reconstructData) setReconstruction(reconstructData)
+    else if (reconstructError) setReconstruction({ error: describeError(reconstructError) })
+
+    setStage(null)
     setStatus('success')
   }
 
@@ -153,7 +183,7 @@ export default function Detect() {
             </div>
 
             <button className="btn-primary analyze-btn" disabled={!file || status === 'loading'} onClick={handleAnalyze}>
-              {status === 'loading' ? 'Analyzing…' : 'Analyze Kolam'}
+              {status === 'loading' ? stageLabel(stage) : 'Analyze Kolam'}
             </button>
 
             {status === 'error' && (
@@ -227,11 +257,51 @@ export default function Detect() {
                 </div>
               </div>
             )}
+
+            {reconstruction && (
+              <div className="archival-frame result-card">
+                <h2 className="heading-display heading-3">Reconstruction</h2>
+                <p className="body-text body-text--sm detect-placeholder">
+                  Checks whether the motif/residual decomposition of THIS pattern's own detected
+                  structure reproduces a connected, valid graph. This is not novel-pattern
+                  generation — that capability remains experimental and is not exposed here.
+                </p>
+                {reconstruction.error && (
+                  <p className="detect-error" role="alert">{reconstruction.error}</p>
+                )}
+                {reconstruction.reconstruction?.note && (
+                  <p className="detect-error" role="alert">{reconstruction.reconstruction.note}</p>
+                )}
+                {reconstruction.reconstruction && reconstruction.reconstruction.is_valid !== undefined && (
+                  <div className="step-table">
+                    <div className="step-row">
+                      <span className="label-tech">Valid reconstruction</span>
+                      <strong className={reconstruction.reconstruction.is_valid ? 'text-valid' : ''}>
+                        {reconstruction.reconstruction.is_valid ? 'Yes' : 'No'}
+                      </strong>
+                    </div>
+                    <div className="step-row"><span className="label-tech">Motif edges</span><strong>{reconstruction.reconstruction.motif_edges}</strong></div>
+                    <div className="step-row"><span className="label-tech">Residual edges</span><strong>{reconstruction.reconstruction.residual_edges}</strong></div>
+                    <div className="step-row"><span className="label-tech">Capped excess pairs</span><strong>{reconstruction.reconstruction.capped_excess_pairs}</strong></div>
+                    <div className="step-row"><span className="label-tech">Connected</span><strong>{reconstruction.reconstruction.connectivity.largest_component_covers_all_nodes ? 'Yes' : 'No'}</strong></div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
     </main>
   )
+}
+
+function stageLabel(stage) {
+  switch (stage) {
+    case 'detecting': return 'Detecting…'
+    case 'analyzing': return 'Building structure…'
+    case 'reconstructing': return 'Reconstructing…'
+    default: return 'Analyzing…'
+  }
 }
 
 function DotOverlay({ mode, detectResult, compareResult, scale }) {

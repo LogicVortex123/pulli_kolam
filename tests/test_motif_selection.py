@@ -137,8 +137,17 @@ def test_greedy_selection_avoids_over_explaining_placement():
     pattern = _synthetic_pattern(G)
     source_mult = Counter(frozenset(e) for e in G.edges())
 
-    # OLD, unmodified algorithm (mode A) -- demonstrably over-explains
-    # this exact input, verified directly (not asserted from memory).
+    # Mode A (induce_motif_set_adaptive) -- its own internal ACCOUNTING is
+    # now multiplicity-exact (session 10 fix), but that fix does not, by
+    # itself, stop build_candidate_graph from physically over-explaining:
+    # build_candidate_graph blindly re-stamps every point in a selected
+    # MotifPlacement, with no memory of what the accounting layer capped/
+    # credited during selection -- a real, separately-discovered gap (see
+    # PROJECT_STATE.md), NOT fixed this session (out of the literal scope
+    # of "fix the accounting"). So mode A STILL demonstrably over-explains
+    # the MATERIALIZED graph on this exact input, verified directly below
+    # (not asserted from memory) -- for a different, now-understood reason
+    # than before the accounting fix.
     old_placements, _residual, _full = induce_motif_set_adaptive(pattern, max_radius=1)
     old_graph = build_candidate_graph(old_placements, pattern.dot_points)
     old_mult = Counter(frozenset(e) for e in old_graph.edges())
@@ -242,13 +251,17 @@ def test_deterministic_results():
 
 
 def test_existing_behavior_remains_available_as_baseline():
-    # mode A (engine.motifs.induce_motif_set_adaptive) must be completely
-    # untouched and independently callable -- M3.6 adds new selectors,
-    # it does not replace or gate the existing one.
+    # mode A (engine.motifs.induce_motif_set_adaptive) remains independently
+    # callable -- M3.6 adds new selectors, it does not replace or gate the
+    # existing one. NOTE: mode A itself was later given a multiplicity-exact
+    # ACCOUNTING fix (session 10 -- see PROJECT_STATE.md), so "unmodified"
+    # no longer describes it precisely: its residual is now a Counter
+    # (multiplicity-exact deficit), not a plain set of distinct pairs. This
+    # is a real, intentional type change, asserted directly below.
     pattern = load_kolam("kolam19", 1)
     placements, residual, fully_covered = induce_motif_set_adaptive(pattern, max_radius=1)
     assert isinstance(placements, list)
-    assert isinstance(residual, set)
+    assert isinstance(residual, Counter)
     assert isinstance(fully_covered, bool)
 
 

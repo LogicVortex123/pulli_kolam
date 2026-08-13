@@ -1,6 +1,6 @@
 # PROJECT STATUS — PULLI Kolam Design-Principle Engine
 
-**Last Updated:** 2026-08-13 (Generate page route + 404 fallback)  
+**Last Updated:** 2026-08-13 (design-system tokens/utilities fix — secondary pages were unstyled)  
 **Branch:** `feat/frontend-clone-ui`
 
 ---
@@ -32,7 +32,7 @@ PULLI is a computational platform that uses ML, computer vision, and graph theor
 | Milestone | Status | Notes |
 |---|---|---|
 | Project scaffold (React + Vite) | ✅ Complete | Vite v8, React 19 |
-| Design system (tokens, global styles) | ✅ Complete | Playfair Display + Inter, maroon/gold palette |
+| Design system (tokens, global styles) | ✅ Complete | Playfair Display + Inter, maroon/gold palette. Was Home-page-only for a while — Analyze/About/Gallery/How it Works/Generate referenced a shared `.container`/`.section`/`.eyebrow`/`.heading-display`/`.btn*` utility layer and a `--space-*`/`--color-ink`/`--color-line`/etc. token set that had never been defined, so those pages rendered as unstyled HTML. Fixed via `tokens.css` additions + new `utilities.css`. |
 | Navbar component | ✅ Complete | Deep maroon, gold active underline, Login button |
 | Hero section (3-column layout) | ✅ Complete | Heading, center Kolam SVG, AI meets tradition card |
 | Center Kolam SVG illustration | ✅ Complete | Authentic 4-fold symmetric continuous loop art |
@@ -47,6 +47,7 @@ PULLI is a computational platform that uses ML, computer vision, and graph theor
 | How it Works page | ✅ Complete | Routed at `/how-it-works` |
 | Generate page | ✅ Complete | Routed at `/generate`; fixes navbar link that previously 404'd blank (no matching route) |
 | 404 / catch-all route | ✅ Complete | Prevents blank page on unmatched routes |
+| Gallery page (kolam archive browser) | ✅ Complete | Search/filter by number, 400-pattern grid, Load More pagination — moved up from "In Progress" below, it was already functionally complete |
 | `npm run build` | ✅ Passing | Zero errors, clean production bundle |
 
 ---
@@ -57,7 +58,6 @@ PULLI is a computational platform that uses ML, computer vision, and graph theor
 |---|---|---|
 | Generative reconstruction (pattern generation) | 🔄 In Progress | Foundation laid via motif grammar |
 | Backend API integration with frontend | 🔄 In Progress | REST endpoints planned |
-| Gallery page (kolam archive browser) | 🔄 In Progress | Basic scaffold exists |
 | Kolam detail view | 🔄 In Progress | Route exists, content pending |
 
 ---

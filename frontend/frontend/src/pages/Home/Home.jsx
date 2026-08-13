@@ -3,6 +3,7 @@ import Hero from '../../components/Hero/Hero'
 import FeatureStrip from '../../components/FeatureStrip/FeatureStrip'
 import AnalysisPipeline from '../../components/AnalysisPipeline/AnalysisPipeline'
 import GeneratedVariations from '../../components/GeneratedVariations/GeneratedVariations'
+import MultilingualSupport from '../../components/MultilingualSupport/MultilingualSupport'
 import './Home.css'
 
 export default function Home() {
@@ -45,6 +46,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* 4. MULTILINGUAL SUPPORT */}
+      <MultilingualSupport />
     </main>
   )
 }

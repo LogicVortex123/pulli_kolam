@@ -201,3 +201,47 @@ def test_generation_does_not_mutate_source_kolam_pattern():
 
     assert pattern.dot_points == dots_before
     assert edge_set(pattern.graph) == graph_edges_before
+
+
+# ============================================================
+# Physical multiplicity materialization audit (session 11):
+# construct adversarial cases and inspect ACTUAL nx.MultiGraph edge keys,
+# not counters/metrics -- per the M4-pre-flight architectural question
+# "correct accounting does not automatically guarantee correct physical
+# materialization." No bug found here; these are the proof, not a fix.
+# ============================================================
+
+
+def test_multiplicity_case_a_doubled_relative_edge_within_one_placement():
+    # Case A: A-B appears twice, via ONE motif whose own relative-edge
+    # list repeats the same pair. Expected: 2 parallel physical edges,
+    # verified via actual MultiGraph edge keys, not a Counter.
+    A, B = (0, 0), (1, 0)
+    motif_doubled = (((0, 0), (1, 0)), ((0, 0), (1, 0)))
+    placement = MotifPlacement(motif=motif_doubled, points=[A], transforms={})
+
+    G = build_candidate_graph([placement], {A, B})
+
+    keys = [k for (_a, _b, k) in G.edges(keys=True) if {_a, _b} == {A, B}]
+    assert len(keys) == 2
+    assert len(set(keys)) == 2  # two DISTINCT keys, not the same key counted twice
+    assert G.number_of_edges(A, B) == 2
+
+
+def test_multiplicity_case_b_cross_placement_accumulation():
+    # Case B: A-B appears three times, via TWO SEPARATE placements (2
+    # from one motif's own doubled relative edge, 1 from a second,
+    # independent motif) -- both contributing to the SAME physical pair.
+    # Expected: 3 parallel edges, cross-placement accumulation correct,
+    # not overwritten.
+    A, B = (0, 0), (1, 0)
+    motif_doubled = (((0, 0), (1, 0)), ((0, 0), (1, 0)))
+    motif_single = (((0, 0), (1, 0)),)
+    p1 = MotifPlacement(motif=motif_doubled, points=[A], transforms={})
+    p2 = MotifPlacement(motif=motif_single, points=[A], transforms={})
+
+    G = build_candidate_graph([p1, p2], {A, B})
+
+    assert G.number_of_edges(A, B) == 3
+    keys = [k for (_a, _b, k) in G.edges(keys=True) if {_a, _b} == {A, B}]
+    assert len(set(keys)) == 3

@@ -237,3 +237,77 @@ def test_reconstruction_caps_over_explained_motif_strands():
     assert cmp["self_consistent"] is True
     assert cmp["n_capped_excess_pairs"] == 1
     assert cmp["n_capped_excess_strands"] == 1
+
+
+# ============================================================
+# Physical multiplicity materialization audit (session 11):
+# construct adversarial cases and inspect ACTUAL nx.MultiGraph edge keys,
+# not counters/metrics. No bug found here; these are the proof.
+# ============================================================
+
+
+def _pair_graph_pattern(n_strands: int, a=(0, 0), b=(1, 0)) -> KolamPattern:
+    """A minimal KolamPattern: two dots, connected by exactly `n_strands`
+    parallel edges -- the source target for the adversarial cases below."""
+    G = nx.MultiGraph()
+    for _ in range(n_strands):
+        G.add_edge(a, b)
+    dots = {a, b}
+    return _synthetic_pattern(G)
+
+
+def test_multiplicity_case_c_motif_plus_residual_sum_correctly():
+    # Case C: motif contributes N=2, source target (and therefore
+    # residual) needs 3 more -> expect N+M=5 PHYSICAL edges, verified via
+    # the actual MultiGraph's own edge count, not a Counter.
+    a, b = (0, 0), (1, 0)
+    source = _pair_graph_pattern(5, a, b)
+    motif_doubled = (((0, 0), (1, 0)), ((0, 0), (1, 0)))  # contributes N=2
+    placement = MotifPlacement(motif=motif_doubled, points=[a], transforms={})
+
+    result = reconstruct_kolam(source, [placement])
+
+    assert result.candidate_graph.number_of_edges(a, b) == 5
+    pair = frozenset({a, b})
+    assert result.residual_multiplicity[pair] == 3  # M=3, the exposed per-pair count
+    assert result.edge_multiplicity[pair] == 5
+
+
+def test_multiplicity_case_d_duplicate_motif_contribution_not_collapsed():
+    # Case D: TWO SEPARATE placements each independently contribute 2
+    # strands to the SAME pair (as if selection picked the same motif
+    # type twice, or two structurally-identical overlapping candidates)
+    # -- their contributions must SUM (4 total), not collapse to 2 as if
+    # "duplicate" meant "redundant." Source target is 6, so residual adds
+    # the remaining 2.
+    a, b = (0, 0), (1, 0)
+    source = _pair_graph_pattern(6, a, b)
+    motif_doubled = (((0, 0), (1, 0)), ((0, 0), (1, 0)))
+    p1 = MotifPlacement(motif=motif_doubled, points=[a], transforms={})
+    p2 = MotifPlacement(motif=motif_doubled, points=[a], transforms={})  # duplicate
+
+    result = reconstruct_kolam(source, [p1, p2])
+
+    assert result.candidate_graph.number_of_edges(a, b) == 6
+    assert result.capped_excess == {}  # 4 (motif) + 2 (residual) == 6 exactly, nothing capped
+    pair = frozenset({a, b})
+    assert result.residual_multiplicity[pair] == 2
+
+
+def test_multiplicity_over_explanation_is_capped_and_reported_not_dropped():
+    # The original over-explanation bug this whole investigation started
+    # from: a motif that produces MORE strands than source's real target
+    # must be CAPPED at the target, with the excess explicitly reported
+    # (capped_excess), never silently discarded and never left in the
+    # physical graph uncapped.
+    a, b = (0, 0), (1, 0)
+    source = _pair_graph_pattern(2, a, b)  # source target is only 2
+    motif_5x = tuple([((0, 0), (1, 0))] * 5)  # produces 5
+    placement = MotifPlacement(motif=motif_5x, points=[a], transforms={})
+
+    result = reconstruct_kolam(source, [placement])
+
+    assert result.candidate_graph.number_of_edges(a, b) == 2  # capped, not 5
+    pair = frozenset({a, b})
+    assert result.capped_excess[pair] == 3  # 5 produced - 2 kept = 3 explicitly reported
+    assert result.residual_multiplicity.get(pair, 0) == 0  # no deficit -- motif already covered the target

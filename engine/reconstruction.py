@@ -57,7 +57,17 @@ class ReconstructionResult:
                        what had to be copied back from source to make up
                        the deficit. NOT "noise" -- see
                        docs/RECONSTRUCTION.md "Do not call residuals
-                       noise".
+                       noise". A SET (which pairs) -- for the per-pair
+                       STRAND COUNT of each deficit, see
+                       residual_multiplicity.
+    residual_multiplicity: {frozenset({a,b}): n_strands_added_from_source}
+                       -- the per-pair deficit COUNT residual_edges'
+                       set form doesn't carry (added session 11, a pure
+                       transparency addition -- this data was already
+                       computed internally to build candidate_graph, just
+                       not previously exposed as its own field).
+                       set(residual_multiplicity.keys()) == residual_edges
+                       always.
     capped_excess   : {frozenset({a,b}): n_dropped} -- per-pair strand
                        count that motif placements contributed BEYOND
                        source's real multiplicity for that pair, and that
@@ -85,6 +95,7 @@ class ReconstructionResult:
 
     motif_edges: set
     residual_edges: set
+    residual_multiplicity: dict
     capped_excess: dict
     candidate_graph: nx.MultiGraph
     edge_multiplicity: dict
@@ -236,6 +247,7 @@ def reconstruct_kolam(
         residual_policy=residual_policy,
         motif_edges=motif_edges,
         residual_edges=residual_edges,
+        residual_multiplicity=dict(residual_counts),
         capped_excess=capped_excess,
         candidate_graph=candidate_graph,
         edge_multiplicity=edge_multiplicity,

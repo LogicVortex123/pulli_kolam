@@ -1,11 +1,296 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: end of session 11 — M4 Readiness Report complete. Decision: **M4 READY WITH CONDITIONS.**
+Last updated: end of session 12 (M4.0) — real-photo corpus expanded,
+ML interface contract frozen, deterministic baseline re-measured.
+Decision: **M4.0 DATA + CONTRACT READY.** ML implementation (model code,
+training) has still NOT begun — that is M4.1+, not this session.
 
-Work from sessions 4-11 lives on branch `feature/generation-pipeline`
+Work from sessions 4-12 lives on branch `feature/generation-pipeline`
 (pushed to origin, not yet merged to `master`) —
 `git log --oneline master..feature/generation-pipeline` to see them, or
 PR compare link: https://github.com/SIH-2026-Celestials/pulli_kolam/pull/new/feature/generation-pipeline
+
+## Session 12 — M4.0 Data Readiness (full text below, also the canonical copy)
+
+# M4.0 DATA READINESS REPORT
+
+Companion to session 11's M4 Readiness Report (below, unchanged). This
+session executes that report's two entry conditions: (1) expand the
+real-photo sample, (2) freeze the ML-output -> deterministic-engine-input
+contract. **No model code was written and no training occurred**, per
+this session's explicit scope.
+
+### 1. Real-photo corpus size
+
+23 files in `real_photos/` (5 from session 11 + 18 new this session).
+1 (`ithayakkamalam_pulli_mayooranathan.jpg`) is excluded as a confirmed
+digital rendering, not a photograph — session 11 had already reached
+this conclusion but never recorded it in `MANIFEST.md`; that gap is
+fixed this session. **22 genuine, individually-verified real
+photographs** in the evaluation corpus, within this task's 15-30
+target range.
+
+### 2. Source/attribution status
+
+All 22 verified individually on their own Wikimedia Commons file
+description page before download (author, license, EXIF/format
+evidence) — the same methodology session 11 established, applied again
+this session, including its own documented rejections: 4 candidates
+checked and excluded (`Ithayakkamalam - 1/2.jpg` and
+`Kolam-Pulli oodu-Tamil-culture.jpg`: Photoshop-authored digital
+artwork, not photographs; `MargaliKolam-1.jpg`: no verifiable EXIF/camera
+data, excluded as unverifiable rather than included at lower confidence).
+Full source/license/attribution record: `real_photos/MANIFEST.md`.
+Licenses: CC BY-SA (3.0/4.0), CC BY 2.0, Public Domain — all permit
+reuse with attribution, attribution recorded per file. Cameras/dates
+span 2001-2023, Sony/Canon/Nikon/Samsung/HTC/Lenovo/mobile and
+mirrorless, resolutions 340x263 to 9248x6936.
+
+### 3. In-scope image count
+
+**4 of 22 (18%)** genuinely depict a visible pulli/dot lattice:
+`kolam2_tshrinivasan.jpg`, `kolam_attur1_infofarmer.jpg`,
+`kolam_naduveetu_meenakshisundaram.jpg`, `muggu_kollam_sirensongs.jpg`.
+This low in-scope rate is itself a finding, not noise — see Section 13.
+
+### 4. NO_VISIBLE_DOT_MARKERS count
+
+**18 of 22 (82%)**: `pulli_kolam_ramdhaya.jpg`, `kolam1_raaj.jpg`,
+`kolam_aruppukottai_tanandaraj.jpg` (painted peacock scene, not a dot
+kolam at all), `kolam_attur12_infofarmer.jpg`, `kolam_attur5_infofarmer.jpg`,
+`kolam_bangalore_moed.jpg`, `kolam_diamond_aiswarya.jpg`,
+`kolam_floral_salem_thamizhpparithi.jpg` (marigold-petal offering
+rangoli), `kolam_house_tamilnadu_vadakkan.jpg` (line-only sikku kolam),
+`kolam_india06_mckaysavage.jpg`, `kolam_india09_mckaysavage.jpg`,
+`kolam_india12_mckaysavage.jpg` (Om symbol, no dot grid),
+`kolam_paris_dalbera.jpg` (painted exhibition mandala with tribal-mask
+motifs, not a dot kolam), `kolam_patteeswaram_dalbera.jpg` (dense
+paisley/leaf linework, no individually resolvable dots),
+`kolam_pongal_uthandi_tagooty.jpg` (decorative "eye" motifs, not a pulli
+grid), `kolam_sandpainting_mckaysavage.jpg`,
+`kolam_thiruvananthapuram_vism.jpg` (line-only woven star kolam),
+`rangoli_32dots_rachana.jpg` (fully filled geometric mosaic — despite
+its title claiming an underlying 32-dot grid, no individual dots are
+visible in the finished, filled artwork). Every one of these is
+classified `NO_VISIBLE_DOT_MARKERS` by direct visual inspection (Read
+tool, this session), not inferred from detector output — consistent
+with session 11's "do not call this an ML failure" rule.
+
+### 5. Low-contrast cases
+
+Of the 4 in-scope photos: `kolam2_tshrinivasan.jpg` (gray mean 62.5,
+std 21.6 — the original, already-documented case) and
+`kolam_naduveetu_meenakshisundaram.jpg` (gray mean 72.6, std 63.4 — a
+NEW, independently discovered low-light case this session) both have
+visually confirmed dots that the deterministic detector fails on (0-1
+raw pixel detections against a photo with visibly many more dots than
+that). This is now **n=2** low-light/low-contrast failures, not n=1 —
+directly relevant to session 11's condition 1 ("expand the sample
+before sizing a dataset effort"): the failure mode is confirmed to
+recur, not a one-off.
+
+### 6. Other failure modes (new this session)
+
+- **`kolam_attur1_infofarmer.jpg`: a clean SUCCESS.** 12/12 dots
+  detected, lattice fit succeeded. First real (non-synthetic) photograph
+  in this project's history where the deterministic pipeline's dot
+  detection stage worked correctly end to end. Its connected component
+  did not cover all nodes (`level2_connected = False`), which is a
+  separate, downstream (stroke-tracing/connectivity) question, not a
+  detection failure — out of this session's ML-boundary scope (dot
+  detection only, per `docs/M4_EVALUATION_PROTOCOL.md` Section 2).
+- **`muggu_kollam_sirensongs.jpg`: a PARTIAL detection** (4 dots found,
+  visibly more present in the photo; decent contrast, gray mean 133.1 —
+  not obviously a contrast problem, cause not conclusively determined
+  this session, reported honestly as unresolved rather than guessed).
+- **A newly discovered, reproduced-in-the-wild crash**:
+  `kolam_india12_mckaysavage.jpg` (a `NO_VISIBLE_DOT_MARKERS` photo — an
+  Om symbol with no real dots) produced exactly 2 spurious pixel
+  detections and 0 fitted lattice coordinates — the precise asymmetric
+  `Lattice` shape documented as a blocker in `docs/ML_CONTRACT.md`
+  Section 5 (originally found via constructed adversarial testing this
+  session, BEFORE this photo was even run) — and it crashed
+  `image_io.trace_path` with `IndexError`, confirmed by
+  `validate_real_photos.py`. This is significant: the blocker is not
+  confined to genuine-dot photographs. Any photo producing 1-2 spurious
+  blob detections — including one with NO real dots at all — can crash
+  the pipeline. **Not fixed this session** (strict rule: do not modify
+  `trace_path`); listed as a blocker in Section 8.
+- Several `NO_VISIBLE_DOT_MARKERS` photos still produced nonzero
+  detection counts from the deterministic detector (`kolam_india06`: 4,
+  `kolam_pongal_uthandi_tagooty`: 6, `rangoli_32dots_rachana`: 36,
+  `kolam_thiruvananthapuram_vism`: 11, `kolam_aruppukottai_tanandaraj`:
+  1) — all almost certainly false positives from grout lines, dry
+  leaves, fabric/newspaper texture, or the regular geometric edges of
+  filled color blocks, NOT real dots (confirmed absent by direct visual
+  inspection). This is evidence the detector's false-positive surface is
+  broader than "genuine dot photos with degraded contrast" — worth
+  keeping in mind if a future false-positive-rate metric is measured
+  against this corpus.
+
+### 7. Ground-truth schema
+
+Defined in `docs/M4_EVALUATION_PROTOCOL.md` Section 1 — two tiers.
+Tier A (synthetic photo proxies, `synthetic_photos/` +
+`synthetic_photos_heldout/`): unchanged, pixel-exact, rendered from
+already-validated CSV patterns. Tier B (real photos, new this session):
+deliberately coarser and uncertainty-labeled — `in_scope`,
+`dots_visible_to_human`, `visible_dot_count_estimate` (explicit
+estimate, never fabricated precision), `dot_center_annotations` (`null`
+where a photo is too degraded to annotate reliably — "mark it
+appropriately rather than inventing coordinates"), `annotation_uncertainty_note`,
+`failure_stage`. No Tier B photo was hand-annotated with precise pixel
+coordinates this session — the schema is defined, per Phase 2's own
+scope ("before collecting a large dataset, define exactly what
+constitutes ground truth"), not yet populated at scale.
+
+### 8. ML interface contract
+
+Frozen in `engine/ml_contract.py` (a zero-dependency `typing.Protocol` +
+`Callable` type alias matching `detect_lattice`'s exact signature,
+`Preprocessed -> Lattice`, plus `assert_conforms()`, a structural
+shape-invariant checker) and `docs/ML_CONTRACT.md` (full specification:
+input/output types, coordinate system and normalization, ordering,
+missing/duplicate/out-of-image detections, empty/minimum-point
+convention, and error behavior). `detect_lattice` itself verified to
+satisfy the frozen `Protocol` (`isinstance(detect_lattice,
+MLLatticeDetector) == True`).
+
+**One concrete blocker documented, not fixed**: `trace_path` crashes
+with `IndexError` on a `Lattice` with 1-2 `pixel_positions` but 0
+`lattice_coords` — reproduced both by direct construction (this
+session's contract tests) AND organically in the wild (Section 6,
+`kolam_india12_mckaysavage.jpg`). `assert_conforms()` cannot catch this
+by itself (0 coords is a legal value of its shape invariant) — this is
+explicitly called out in both `docs/ML_CONTRACT.md` and the test suite
+so it isn't mistaken for a complete guard.
+
+### 9. Contract tests
+
+`tests/test_ml_contract.py`, 6 tests, all passing: a hand-built mock
+detector (hardcoded output, no detection algorithm at all) proven to
+drive `trace_path` + graph construction + `validity.check_validity` +
+`motifs.induce_motif_set_adaptive` with ZERO changes to any of those
+functions; the empty-detection convention matches `detect_lattice`'s
+own; the documented blocker is reproduced directly (`pytest.raises`)
+and the recommended safe convention (collapse 1-2-point detections to
+fully empty) is proven to avoid it.
+
+### 10. Deterministic baseline metrics
+
+`validate_real_photos.py` (new this session) run against all 22 in-scope
+candidates, reporting the three levels `docs/M4_EVALUATION_PROTOCOL.md`
+Section 3 defines, kept separate:
+
+- **Level 1 (dot detection)**: no pixel-exact real-photo ground truth
+  exists yet (Section 7) so no precision/recall number is reported for
+  real photos — only raw counts (Section 5/6) and the qualitative
+  success/fail/partial per in-scope image. Synthetic-corpus precision/
+  recall is unchanged from session 11 (dot recall 1.0000 tuned / 0.9995
+  held-out) — not re-measured this session, nothing in the codebase
+  that would affect it changed.
+- **Level 2 (graph construction)**: 21/22 completed without crashing;
+  1/22 crashed (Section 6). Of the 4 in-scope images, 1 fully connected
+  lattice+graph (`kolam_attur1`), 2 zero-detection (no graph to be
+  connected/disconnected), 1 partial-detection-but-not-fully-connected
+  (`muggu_kollam_sirensongs`).
+- **Level 3 (full analysis)**: not separately blocked by anything found
+  this session; not run to completion on any image with zero detected
+  nodes (nothing to analyze), consistent with the protocol.
+
+### 11. Proposed evaluation protocol
+
+Unchanged from `docs/M4_EVALUATION_PROTOCOL.md` (this session's own
+output) — localization tolerance 6.0px (matching the existing synthetic-
+corpus convention), three separate levels never blended into one
+"accuracy" number, Tier A vs Tier B ground truth kept distinct.
+
+### 12. Proposed dataset size/rationale
+
+- **Synthetic (Tier A) is the primary training-data lever, not real
+  photos.** `kolam_data/Kolam19 Images/` alone has 400 source images
+  (kolam29/kolam109 collections also available) — ample material to
+  generate synthetic photo proxies at whatever volume is needed, with
+  perfect ground truth, at far lower cost than real-photo annotation.
+- **Augmentation should be calibrated to THIS session's measured real
+  failure statistics**, not guessed: `kolam2_tshrinivasan.jpg` (gray
+  mean 62.5, std 21.6) and `kolam_naduveetu_meenakshisundaram.jpg`
+  (gray mean 72.6, std 63.4) give concrete brightness/contrast targets
+  for a synthetic low-light/low-contrast augmentation pass — grounded in
+  Section 5's evidence, not an arbitrary degradation range.
+- **Real photos (Tier B) are not yet a viable training set** — only 4
+  in-scope examples exist despite a 22-photo collection effort (an 18%
+  in-scope rate, Section 3). At that rate, reaching even 50 in-scope
+  real training examples would require collecting roughly 275+ candidate
+  photos — a real, now-quantified cost (previously unknown before this
+  session). Recommend real photos be used exclusively as a small,
+  never-trained-on TEST set for real-world generalization checking, not
+  as training data, until/unless a much larger collection effort is
+  separately justified.
+- **Train/val/test split (proposed, not implemented)**: synthetic data
+  for train + a synthetic held-out split for validation (mirroring the
+  existing `synthetic_photos` / `synthetic_photos_heldout` split
+  already used for the deterministic baseline); the 4 in-scope real
+  photos reserved as a test-only sanity check, explicitly too small for
+  a statistically meaningful test metric alone but valuable as a
+  qualitative reality check.
+- **Transfer learning**: not decided — explicitly deferred, this is an
+  architecture question and out of this session's scope.
+- Dataset size, split, and augmentation are a PROPOSAL for the next
+  session to execute, not implemented this session.
+
+### 13. Remaining blockers
+
+**Blocking for ML entry: none newly found.** Session 11's 0-blocking
+conclusion stands. The items below are conditions/technical debt to
+track, not blockers:
+
+1. **`trace_path` IndexError on asymmetric `Lattice`** (Sections 6, 8) —
+   a small, well-understood, NOT-yet-applied guard fix (analogous to
+   `detect_lattice`'s own existing `< 3` guard). Now confirmed to occur
+   organically, not just in constructed adversarial tests — raises this
+   from "theoretical" to "observed in the collected corpus." Should be
+   fixed before real ML-detector integration begins, since an ML
+   detector reporting low-confidence/sparse detections is a plausible,
+   even likely, real output shape.
+2. **In-scope real-photo rate is low (18%)** — not a pipeline defect
+   (Section 4: these are genuinely non-dot-grid kolam/rangoli styles),
+   but it means future real-photo collection for Tier B purposes is
+   expensive per in-scope example — factor this into any future
+   collection-effort sizing (Section 12).
+3. **`muggu_kollam_sirensongs.jpg`'s partial-detection cause is
+   unresolved** — flagged honestly rather than guessed; worth a closer
+   look (not done this session) before assuming it's the same
+   low-contrast failure mode as the other two.
+4. Everything already listed as non-blocking in session 11's Section 9
+   (novel generation 0/5, motif-selection-granularity gap, branch not
+   merged to `master`) is unchanged and still non-blocking.
+
+### M4.0 Entry Decision
+
+# M4.0 DATA + CONTRACT READY
+
+Both of session 11's conditions have been acted on:
+1. Real-photo sample expanded 4x in-scope count (1 -> 4), corpus size
+   4x overall (5 -> 22... 23 with the excluded file) — genuinely larger,
+   though the low in-scope rate (Section 13, item 2) means "expand
+   further" remains open-ended rather than fully closed; this session's
+   expansion is a substantial, evidenced step, not a token gesture.
+2. ML-output -> engine-input contract frozen (`engine/ml_contract.py`,
+   `docs/ML_CONTRACT.md`), proven substitutable via 6 passing contract
+   tests, with one concrete pre-existing blocker discovered, reproduced
+   twice (constructed + organic), documented, and explicitly NOT fixed
+   (per this session's own strict rule).
+
+**Recommendation for the next session, before writing any model code**:
+fix the `trace_path` asymmetric-`Lattice` guard (item 1 above) as a
+small, isolated, well-justified deterministic-engine change — it is now
+a demonstrated real-world crash risk, not a hypothetical — then proceed
+to M4.1 (architecture/training).
+
+---
+Tests: 123/123 passing (117 from session 11 + 6 new
+`tests/test_ml_contract.py` tests this session).
 
 ## Session 11 — M4 Readiness Report (full text below, also the canonical copy)
 

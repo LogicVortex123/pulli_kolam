@@ -4,6 +4,14 @@
 # Markdown / notes (kept locally, not pushed)
 *.md
 !/README.md
+# Project findings/state docs are institutional memory, not scratch
+# notes -- they must be tracked so they survive across sessions/clones.
+!/PROJECT_STATE.md
+!/docs/DATA_FORMAT.md
+!/docs/GENERATION.md
+!/docs/RECONSTRUCTION.md
+!/docs/MOTIF_SELECTION.md
+!/docs/NOVEL_GENERATION.md
 
 # Python
 __pycache__/

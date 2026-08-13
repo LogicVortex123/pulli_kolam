@@ -203,3 +203,37 @@ def test_reconstruction_on_real_pattern_uses_source_dot_layout():
     # candidate's edges (residual only ADDS, never removes/replaces)
     motif_graph = build_candidate_graph(placements, pattern.dot_points)
     assert {frozenset(e) for e in motif_graph.edges()} <= {frozenset(e) for e in result.candidate_graph.edges()}
+
+
+def test_reconstruction_caps_over_explained_motif_strands():
+    # Regression test for the over-explanation fix: a source pair with
+    # multiplicity 1 that TWO different placements each independently
+    # try to explain (motif contribution = 2) must end up with exactly
+    # 1 strand in the final candidate, not 2 -- and the excess must be
+    # explicitly reported in capped_excess, not silently dropped.
+    edge = frozenset({(0, 0), (1, 0)})
+    G = nx.MultiGraph()
+    G.add_edge((0, 0), (1, 0))  # source multiplicity 1
+
+    source = _synthetic_pattern(G)
+    motif = (((0, 0), (1, 0)),)
+    # two SEPARATE placements of the same motif, both landing on the
+    # same pair -- build_candidate_graph would happily produce 2 strands
+    # here (that's its documented, correct behavior for a caller that
+    # WANTS accumulation); reconstruct_kolam must not let that leak
+    # through uncapped into a reconstruction of `source`.
+    placement_a = MotifPlacement(motif=motif, points=[(0, 0)], transforms={})
+    placement_b = MotifPlacement(motif=motif, points=[(0, 0)], transforms={})
+
+    motif_graph_uncapped = build_candidate_graph([placement_a, placement_b], {(0, 0), (1, 0)})
+    assert motif_graph_uncapped.number_of_edges((0, 0), (1, 0)) == 2  # confirms this really would over-explain
+
+    result = reconstruct_kolam(source, [placement_a, placement_b])
+
+    assert result.edge_multiplicity[edge] == 1  # capped to source's real count
+    assert result.capped_excess[edge] == 1  # the 1 excess strand is explicitly reported
+    cmp = result.compare_to_source()
+    assert cmp["multiplicity_exact_match"] is True
+    assert cmp["self_consistent"] is True
+    assert cmp["n_capped_excess_pairs"] == 1
+    assert cmp["n_capped_excess_strands"] == 1

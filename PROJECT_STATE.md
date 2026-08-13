@@ -1,17 +1,21 @@
 # PULLI — Project State (handoff document)
 **Read this first in any new session, before touching code.**
-Last updated: session 16 (M4.2 implementation — API + frontend
-integration + 128×128 encoder-decoder model, code-complete and tested;
-training/evaluation NOT yet complete, see Session 16 below). M4.1
-(session 13) result unchanged: the learned lattice detector is worse
-than the classical detector on every measured axis and does not
-generalize to real photographs — recommendation is NOT to integrate it.
-Session 14 diagnosed WHY (see Section 11's correction, below the
-original Session 13 report, and `diagnostics/M4_1_HEATMAP_DIAGNOSIS.md`):
-a training-target/heatmap-resolution mismatch with this dataset's real
-dot density (180-500+ dots/image). Session 15 quantified that mismatch
-directly (no CNN involved at all — a pure target-representation check,
-see "Session 15" below and
+Last updated: session 16 (M4.2 — COMPLETE: trained, evaluated, decision
+made). M4.2 built a new 128×128 encoder-decoder ML detector + REST API +
+frontend integration, fixing M4.1's diagnosed target-resolution problem
+(synthetic recall 0.05→0.998) but NOT the real-photo domain-gap problem
+(no-dot false-positive rate unchanged at 100%). **Production default
+remains `detector=classical`** — see Session 16 below and
+`docs/M4_2_EVALUATION.md` for the full, honest, mixed result. M4.1
+(session 13)'s original recommendation (do not integrate the learned
+detector into production) still stands, now for a more precisely
+understood reason. Session 14 diagnosed WHY 32×32 failed (see Section
+11's correction, below the original Session 13 report, and
+`diagnostics/M4_1_HEATMAP_DIAGNOSIS.md`): a training-target/heatmap-
+resolution mismatch with this dataset's real dot density (180-500+
+dots/image). Session 15 quantified that mismatch directly (no CNN
+involved at all — a pure target-representation check, see "Session 15"
+below and
 `experiments/m4_1/diagnostics/TARGET_RESOLUTION_REPORT.md`): the
 current 32×32 architecture's target recovers only 5-28% of true dots as
 distinguishable peaks even in the ideal noise-free case; 128×128 is the
@@ -26,70 +30,94 @@ per measured evidence. No production integration has occurred at any
 point in sessions 13-16; `detector=classical` remains the default
 everywhere.
 
-## Session 16 — M4.2 Phases A–N: API + frontend integration (CODE COMPLETE, EVALUATION PENDING)
+## Session 16 — M4.2: high-res ML detector + API/frontend integration (COMPLETE)
 
 **Scope**: implements the M4.2 plan (`docs/M4_2_IMPLEMENTATION_PLAN.md`,
 written this session after auditing M4.1 + the frozen ML contract +
-existing frontend — see that file for the full audit and scope
-decisions). Delivers a new 128×128-output encoder-decoder model
+existing frontend). Delivers a new 128×128-output encoder-decoder model
 (`experiments/m4_2/model.py`), a new minimal FastAPI service (`api/`),
 and a new frontend upload/detect page (`frontend/frontend/src/pages/Detect/`,
-route `/detect`) — all wired together, none of it faking a result that
-doesn't exist yet.
+route `/detect`) — trained, evaluated, and the production decision made.
 
-**What is done and tested:**
-- `experiments/m4_2/model.py`: new U-Net-style encoder-decoder,
-  native 128×128 single-channel output (never an upsampled 32×32).
-- `experiments/m4_2/ml_lattice_detector.py`: same `MLLatticeDetector`
-  Protocol as M4.1 (`engine/ml_contract.py`, unmodified), pointed at
-  the new model.
-- `api/` (new top-level dir — no backend existed anywhere before this):
-  `main.py` (FastAPI app), `detectors.py` (`ClassicalDetector`/
-  `MLDetector` → common `DetectionResult`), `canonical.py` (engine
-  objects → plain-JSON-safe shapes, no NetworkX/MotifPlacement ever
-  returned directly), `reconstruct_adapter.py`, `schemas.py`. Endpoints:
-  `POST /api/v1/detect`, `/analyze`, `/reconstruct`, `/compare-detectors`,
-  `GET /api/v1/health`, `/model` — contracts documented in
-  `docs/M4_2_API.md`. `detector=classical` is the default everywhere;
-  `detector=ml` failures return explicit HTTP 503, never a silent
-  fallback. Uploaded images: written to temp, processed, deleted —
-  never persisted or logged.
-- Frontend: `src/pages/Detect/Detect.jsx` (new page, does not modify
-  the existing static `/analyze` page — that page stays a precomputed-
-  dataset walkthrough, per `CLAUDE.md`'s "don't fake image-analysis"
-  rule) + `src/lib/api/*.js` (plain JS client, JSDoc-documented shapes
-  — no TypeScript toolchain introduced, project has none).
-- `requirements.txt` updated: `fastapi`, `uvicorn`, `python-multipart`
-  added (already present in the dev environment prior to this session,
-  same pattern as `torch` in M4.1 — declared for reproducibility, not
-  newly introduced).
-- Tests, all passing this session: core `tests/` 123/123 (unchanged),
-  `api/tests/` 11/11 (new), `experiments/m4_2/tests/` 18/18 (new) — 152
-  total. Frontend: `npm run lint` 0 errors, `npm run build` clean.
+**Bottom line: mixed, and both halves matter.** M4.2 conclusively fixed
+the specific problem M4.1.1/M4.1.2 diagnosed (target-resolution
+mismatch) — synthetic dot-level recall jumped from M4.1's ~0.05-0.07 to
+**0.998-0.999** on directly-comparable held-out synthetic data. It did
+**NOT** fix the real-photo domain-gap problem M4.1 also found — real
+no-dot false-positive rate is unchanged at 18/18 (100%), and real
+in-scope over-detection is wildly inconsistent (58-563 detections
+against human estimates of 4-150). Per the evaluation's own
+pre-committed decision rule, **`recommend_ml_as_default = False`** —
+`detector=classical` stays the production default; ML remains available
+behind an explicit `detector=ml`/`compare` flag. Full results and
+interpretation: `docs/M4_2_EVALUATION.md` (do not read only the
+synthetic numbers — that comparison is confounded, see below).
 
-**Explicitly NOT done yet — do not assume otherwise:**
-1. **Training is still running as of this update**
-   (`experiments/m4_2/train.py`, checkpoint
-   `experiments/m4_2/results/dot_heatmap_net_v2.pt` exists and is being
-   overwritten as val_loss improves; `results/training_log.json` does
-   not exist yet — it's only written when training completes). No
-   final train/val loss numbers exist yet.
-2. **`experiments/m4_2/evaluate_m4_2.py` has not been run.** No
-   comparison of the new 128×128 model against classical exists. The
-   M4.1 headline recommendation (do not integrate the learned detector)
-   has NOT been superseded — there is simply no new evidence yet either
-   way. Do not report or imply an M4.2 result until this script has
-   actually run and its output has been read.
-3. **`kolam109` is excluded from this training run's data** (M4.2 plan's
-   own scope finding: kolam109 averages ~6800-7000 dots/pattern, 128×128
-   only recovers 2.1% of those as distinct peaks — a density this
-   project has no evidence 128×128 can represent; see
-   `docs/M4_2_IMPLEMENTATION_PLAN.md` Scope decision 3).
-4. Next session should: confirm training finished (check for
-   `experiments/m4_2/results/training_log.json`), run
-   `evaluate_m4_2.py`, and update this section with the actual result
-   — positive or negative — before making any claim about M4.2's
-   outcome.
+**What was built and tested:**
+- `experiments/m4_2/model.py`: `DotHeatmapNetV2`, 382,769-param U-Net
+  (encoder-decoder with skip connections), native 128×128 output — not
+  an upsampled 32×32. Trained 30 epochs on CPU, best val_loss **0.1602**
+  (vs. M4.1's 0.2236 — a materially better fit to its own target).
+- `experiments/m4_2/generate_training_data.py`: 135 patterns (100
+  train / 15 val / 20 test, kolam19+kolam29 only — **kolam109 excluded**,
+  measured directly at ~6800-7000 dots/pattern, only 2.1% local-maxima
+  recovery at 128×128, a density this project has no evidence 128×128
+  can represent). `degrade_v3` recalibrated against the FULL real-photo
+  corpus's measured gray-statistics (not just the 2 hardest cases M4.1
+  used) — generated median gray-mean 124.6 vs. real median 121.4, a
+  close match. 505 images generated, 400/45/60 per split.
+- `experiments/m4_2/peak_sweep.py`: 25-point grid on the VALIDATION set
+  only (never test). Selected threshold=0.6, min_distance=2.0 cells —
+  best F1 0.9993 on validation.
+- `experiments/m4_2/ml_lattice_detector.py`: same frozen
+  `MLLatticeDetector` Protocol as M4.1 (`engine/ml_contract.py`
+  unmodified), pointed at the new model, same collapse-to-empty
+  convention for the still-unfixed `trace_path` blocker.
+- `api/` (new top-level dir — no backend existed anywhere before this
+  session): `main.py`, `detectors.py` (`ClassicalDetector`/`MLDetector`
+  → common `DetectionResult`, coordinates un-deskewed back to the
+  ORIGINAL uploaded image's frame), `canonical.py` (no NetworkX/
+  MotifPlacement ever returned directly), `reconstruct_adapter.py`,
+  `schemas.py`. Endpoints: `POST /api/v1/detect`, `/analyze`,
+  `/reconstruct`, `/compare-detectors`, `GET /api/v1/health`, `/model` —
+  documented in `docs/M4_2_API.md`. `detector=classical` default
+  everywhere; `detector=ml` failures return explicit HTTP 503, never a
+  silent fallback. **Discovered and fixed during integration**: the API
+  process combines torch (for `/model`, ML detection) and MKL-linked
+  numpy (for classical's `_fit_lattice_coords`) in one process — the
+  same OpenMP DLL conflict M4.1 found — fixed permanently by setting
+  `KMP_DUPLICATE_LIB_OK=TRUE` at the top of `api/main.py` (verified safe
+  in M4.1, re-applied here, not re-verified from scratch).
+- Frontend: `src/pages/Detect/Detect.jsx` (new page — does not modify
+  the existing static `/analyze` page, which stays a precomputed-dataset
+  walkthrough per `CLAUDE.md`'s "don't fake image-analysis" rule) +
+  `src/lib/api/{client,kolam,types}.js` (plain JS, JSDoc-documented —
+  no TypeScript toolchain introduced; project has none). Upload,
+  detector radio (Classical/ML/Compare), dot overlay in original-image
+  coordinates, compare-mode green/blue/red agreement overlay, structural
+  analysis panel. `npm run build` and `npm run lint`: clean. **No
+  automated frontend tests added** — project has no test framework
+  (no vitest/jest/testing-library) and introducing one was judged out of
+  this session's scope; flagged here as a known gap, not hidden.
+- `requirements.txt`: `fastapi`, `uvicorn`, `python-multipart` added
+  (already present in the dev environment, declared for reproducibility
+  — same pattern as `torch` in M4.1).
+- Tests: core `tests/` 123/123 (unchanged), `experiments/m4_1/tests/`
+  16/16 (unchanged), `experiments/m4_2/tests/` 18/18 (new),
+  `api/tests/` 11/11 (new) — **168 total, all passing.**
+
+**Key finding needing its own future diagnostic**: even after
+recalibrating `degrade_v3`'s brightness/contrast to match the real-photo
+corpus's measured distribution, the classical detector's recall STILL
+collapses on `experiments/m4_2/data/{val,test}` (0.11-0.20, vs. its
+well-established 1.0/0.9995 on gentler synthetic data) — the same
+confound M4.1's `degrade_v2` produced. Matching gray mean/std alone is
+not sufficient to guarantee synthetic-degradation realism; some other
+axis (translation, blur, vignette, or an interaction) is still breaking
+classical detection. This confounds the synthetic ML-vs-classical
+comparison specifically — see `docs/M4_2_EVALUATION.md`'s
+"Interpretation" section for the full honest treatment. Recommended as
+Session 17's first task if this line of work continues.
 
 Work from sessions 4-12 lives on branch `feature/generation-pipeline`
 (pushed to origin, not yet merged to `master`) —

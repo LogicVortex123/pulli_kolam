@@ -86,7 +86,7 @@ export default function Detect() {
   return (
     <main id="main-content" className="detect-page">
       <header className="detect-header section section--bordered">
-        <div className="container">
+        <div className="container--narrow">
           <p className="eyebrow eyebrow--accent">Live Detection Workflow</p>
           <h1 className="heading-display heading-hero detect-title">Detect &amp; Analyze a Kolam</h1>
           <p className="body-text detect-sub">
@@ -96,7 +96,7 @@ export default function Detect() {
         </div>
       </header>
 
-      <section className="container section detect-body-section">
+      <section className="container--narrow section detect-body-section">
         <div className="detect-grid">
           {/* UPLOAD PANEL */}
           <div className="detect-upload-panel archival-frame">
@@ -201,9 +201,9 @@ export default function Detect() {
                   </div>
                 </div>
                 <div className="step-table">
-                  <div className="step-row"><span className="label-tech">Agreeing dots</span><strong className="legend-agree">{compareResult.agreement.agreeing_dots ?? '—'}</strong></div>
-                  <div className="step-row"><span className="label-tech">ML only</span><strong className="legend-ml">{compareResult.agreement.ml_only ?? '—'}</strong></div>
-                  <div className="step-row"><span className="label-tech">Classical only</span><strong className="legend-classical">{compareResult.agreement.classical_only ?? '—'}</strong></div>
+                  <div className="step-row"><span className="label-tech">Agreeing dots</span><strong className="legend-agree">{compareResult.agreement.agreeing_dots ?? '-'}</strong></div>
+                  <div className="step-row"><span className="label-tech">ML only</span><strong className="legend-ml">{compareResult.agreement.ml_only ?? '-'}</strong></div>
+                  <div className="step-row"><span className="label-tech">Classical only</span><strong className="legend-classical">{compareResult.agreement.classical_only ?? '-'}</strong></div>
                 </div>
                 <div className="overlay-legend">
                   <span><i className="swatch legend-agree" /> Agreement</span>

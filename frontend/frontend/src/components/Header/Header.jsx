@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { ChevronDown, Sun, User } from 'lucide-react'
+import { ChevronDown, Sun, Moon, User } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { LANGUAGES } from '../../i18n/index'
 import './Header.css'
@@ -9,6 +9,35 @@ export default function Header() {
   const { lang, setLanguage, t } = useLanguage()
   const [langOpen, setLangOpen] = useState(false)
   const dropdownRef = useRef(null)
+
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('pulli-theme')
+      if (saved === 'dark') {
+        document.documentElement.classList.add('dark-theme')
+        return 'dark'
+      }
+    } catch {
+      /* ignore */
+    }
+    document.documentElement.classList.remove('dark-theme')
+    return 'light'
+  })
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light'
+    setTheme(nextTheme)
+    try {
+      localStorage.setItem('pulli-theme', nextTheme)
+    } catch {
+      /* ignore */
+    }
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark-theme')
+    } else {
+      document.documentElement.classList.remove('dark-theme')
+    }
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -29,19 +58,20 @@ export default function Header() {
         {/* Left: Brand Logo & Title */}
         <Link to="/" className="navbar-brand">
           <div className="brand-icon-wrapper">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="20" cy="8" r="1.5" fill="#B88735" />
-              <circle cx="20" cy="32" r="1.5" fill="#B88735" />
-              <circle cx="8" cy="20" r="1.5" fill="#B88735" />
-              <circle cx="32" cy="20" r="1.5" fill="#B88735" />
-              <circle cx="14" cy="14" r="1.5" fill="#B88735" />
-              <circle cx="26" cy="14" r="1.5" fill="#B88735" />
-              <circle cx="14" cy="26" r="1.5" fill="#B88735" />
-              <circle cx="26" cy="26" r="1.5" fill="#B88735" />
-              <circle cx="20" cy="20" r="2" fill="#B88735" />
-              {/* Kolam interlocking loops */}
-              <path d="M 20 8 C 28 8, 32 12, 32 20 C 32 28, 28 32, 20 32 C 12 32, 8 28, 8 20 C 8 12, 12 8, 20 8 Z" stroke="#B88735" strokeWidth="1.5" fill="none"/>
-              <path d="M 14 14 C 20 8, 26 8, 26 14 C 32 20, 32 26, 26 26 C 20 32, 14 32, 14 26 C 8 20, 8 14, 14 14 Z" stroke="#B88735" strokeWidth="1.2" strokeDasharray="60 0" fill="none"/>
+            <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* 3x3 Pulli (dots) grid */}
+              <circle cx="30" cy="30" r="2.2" fill="#B88735" />
+              <circle cx="50" cy="30" r="2.2" fill="#B88735" />
+              <circle cx="70" cy="30" r="2.2" fill="#B88735" />
+              <circle cx="30" cy="50" r="2.2" fill="#B88735" />
+              <circle cx="50" cy="50" r="2.8" fill="#B88735" />
+              <circle cx="70" cy="50" r="2.2" fill="#B88735" />
+              <circle cx="30" cy="70" r="2.2" fill="#B88735" />
+              <circle cx="50" cy="70" r="2.2" fill="#B88735" />
+              <circle cx="70" cy="70" r="2.2" fill="#B88735" />
+              {/* Continuous loop line (Kambi) */}
+              <path d="M 50 35 C 42 22, 42 8, 50 8 C 58 8, 58 22, 50 35 C 58 35, 68 18, 75 25 C 82 32, 65 42, 65 50 C 78 46, 92 42, 92 50 C 92 58, 78 54, 65 50 C 65 58, 82 68, 75 75 C 68 82, 58 65, 50 65 C 54 78, 58 92, 50 92 C 42 92, 46 78, 50 65 C 42 65, 32 82, 25 75 C 18 68, 35 58, 35 50 C 22 54, 8 58, 8 50 C 8 42, 22 46, 35 50 C 35 42, 18 32, 25 25 C 32 18, 42 35, 50 35 Z" 
+                    stroke="#B88735" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
             </svg>
           </div>
           <div className="brand-text">
@@ -108,8 +138,8 @@ export default function Header() {
             )}
           </div>
 
-          <button className="btn-theme" aria-label="Toggle Theme">
-            <Sun size={18} />
+          <button className="btn-theme" onClick={toggleTheme} aria-label="Toggle Theme">
+            {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
 
           <button className="btn-login">
